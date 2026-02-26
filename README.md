@@ -1,8 +1,27 @@
 # Armbian Installer for AMLogic TV Boxes
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-green.svg)](https://www.gnu.org/software/bash/)
+
 Instalador automatizado de Armbian em dispositivos TV Box baseados em AMLogic, com suporte especial para dispositivos com bootloader locked.
 
 **Autor:** [Pedro Rigolin](https://github.com/pedrohrigolin)
+
+**Projeto:** Desenvolvido para o [Projeto TVBox](https://github.com/projeto-tvbox) do **Instituto Federal de São Paulo (IFSP)**, Campus Salto
+
+---
+
+## 📦 Sobre o Projeto TVBox
+
+Este instalador foi desenvolvido como parte do **Projeto TVBox do IFSP Campus Salto**, uma iniciativa que visa dar novo propósito a dispositivos TV Box apreendidos pela Receita Federal.
+
+O projeto realiza a descaracterização desses equipamentos, transformando-os em **mini PCs funcionais** com Linux, proporcionando:
+- Reutilização de hardware que seria descartado
+- Inclusão digital através de doações para comunidades
+- Redução de impacto ambiental (e-waste)
+- Capacitação técnica de estudantes
+
+Este código foi desenvolvido especificamente para automatizar a instalação do Armbian em dispositivos AMLogic (S905X/X2/X3), facilitando o processo de reconfiguração em larga escala.
 
 ---
 
@@ -761,6 +780,18 @@ Se o arquivo estiver vazio ou cheio de zeros, a extração falhou.
 
 **Este é um projeto independente**, desenvolvido do zero com objetivos e arquitetura próprios.
 
+### 🏛️ Reconhecimento Institucional
+
+Desenvolvido para o **Projeto TVBox** do **Instituto Federal de São Paulo (IFSP), Campus Salto**.
+
+O Projeto TVBox é uma iniciativa de impacto social que transforma TV Boxes apreendidas pela Receita Federal em mini PCs com Linux, promovendo:
+- Sustentabilidade através da reutilização de hardware
+- Inclusão digital em comunidades carentes
+- Capacitação técnica de estudantes
+- Redução de lixo eletrônico
+
+### 📚 Referências Técnicas
+
 Durante o desenvolvimento, os seguintes projetos foram estudados como referência técnica:
 
 - **Estudado para referência:** [ophub/amlogic-s9xxx-armbian](https://github.com/ophub/amlogic-s9xxx-armbian)
@@ -769,9 +800,21 @@ Durante o desenvolvimento, os seguintes projetos foram estudados como referênci
 
 ---
 
-## Licença
+## 📄 Licença
 
-Este projeto é licenciado sob **GNU General Public License v2.0**.
+Este projeto é licenciado sob a **MIT License**.
+
+```
+MIT License
+
+Copyright (c) 2026 Pedro Rigolin
+
+Developed for Projeto TVBox - Instituto Federal de São Paulo (IFSP), Campus Salto
+```
+
+Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+A licença MIT permite uso livre (incluindo comercial), modificação e distribuição, desde que mantidos os créditos originais.
 
 ---
 
