@@ -50,13 +50,12 @@ O script verifica e instala automaticamente as seguintes dependências:
 
 ```
 armbian-install-amlogic-project/
-├── armbian-install-amlogic.sh      # Script principal (versão customizada)
-├── armbian-install-ophub.sh        # Script base (fork do Ophub)
+├── armbian-install-amlogic.sh      # Script principal do instalador
 └── armbian-install-amlogic/
     ├── assets/                     # Variáveis do U-Boot (binários .img)
-    │   ├── uboot_envs_atv_a5.img
-    │   ├── uboot_envs_btv_e10.img
-    │   └── uboot_envs_htv_h8.img
+    │   ├── uboot_envs_atv_a5.img.gz
+    │   ├── uboot_envs_btv_e10.img.gz
+    │   └── uboot_envs_htv_h8.img.gz
     └── profiles/                   # Configurações por dispositivo
         ├── atv_a5.conf
         ├── btv_e10.conf
@@ -760,9 +759,13 @@ Se o arquivo estiver vazio ou cheio de zeros, a extração falhou.
 
 ## Créditos
 
-- **Baseado em:** [ophub/amlogic-s9xxx-armbian](https://github.com/ophub/amlogic-s9xxx-armbian)
-- **Inspirado em:** [unifreq/openwrt_packit](https://github.com/unifreq/openwrt_packit)
-- **Ferramenta ampart:** [7Ji/ampart](https://github.com/7Ji/ampart)
+**Este é um projeto independente**, desenvolvido do zero com objetivos e arquitetura próprios.
+
+Durante o desenvolvimento, os seguintes projetos foram estudados como referência técnica:
+
+- **Estudado para referência:** [ophub/amlogic-s9xxx-armbian](https://github.com/ophub/amlogic-s9xxx-armbian)
+- **Inspiração conceitual:** [unifreq/openwrt_packit](https://github.com/unifreq/openwrt_packit)
+- **Ferramenta utilizada (ampart):** [7Ji/ampart](https://github.com/7Ji/ampart)
 
 ---
 
