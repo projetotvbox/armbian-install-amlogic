@@ -227,7 +227,7 @@ Escreve variáveis diretamente no offset especificado (geralmente setor 0).
 
 ### Tela preta após instalação
 
-**Causa:** Variáveis do U-Boot incorretas ou DTB errado.
+**Causa:** Variáveis do U-Boot incorretas, DTB errado, ou offset de partição inadequado.
 
 **Solução:**
 1. Verifique se selecionou o perfil correto do dispositivo
@@ -235,12 +235,58 @@ Escreve variáveis diretamente no offset especificado (geralmente setor 0).
    - S905X: `meson-gxl-s905x-*.dtb`
    - S905X2: `meson-g12a-s905x2-*.dtb`
    - S905X3: `meson-sm1-s905x3-*.dtb`
+3. **Dispositivo novo sem perfil?** Siga a seção **Extração de Variáveis U-Boot** para criar um perfil customizado
+
+### Box não boota da eMMC (volta pro pendrive)
+
+**Causa:** Variáveis do U-Boot não foram injetadas corretamente ou arquivo `.img` está corrompido.
+
+**Solução:**
+1. Verifique se o arquivo `ENV_FILE` existe no caminho especificado no profile
+2. Valide o conteúdo do arquivo extraído:
+   ```bash
+   strings /etc/armbian-install-amlogic/assets/uboot_envs_device.img | grep -i "bootcmd"
+   ```
+3. Se vazio ou sem dados relevantes, refaça a extração via Método 1 ou 2
 
 ### Falha ao montar partições
 
 **Causa:** Partições não foram criadas corretamente.
 
 **Solução:** Verifique o log em `/tmp/armbian-install-amlogic.log`.
+
+### Falha ao montar partições
+
+**Causa:** Partições não foram criadas corretamente ou race condition (Kernel ainda não criou `/dev/mmcblkXp1`).
+
+**Solução:** 
+
+1. Verifique o log em `/tmp/armbian-install-amlogic.log`
+2. O instalador já possui proteções contra race conditions:
+   ```bash
+   partprobe /dev/mmcblkX
+   udevadm settle
+   sleep 2
+   ```
+3. Em eMMCs muito lentas, pode ser necessário aumentar o `sleep`
+
+### Variáveis U-Boot não persistem após `saveenv`
+
+**Causa:** O bootloader não tem permissão ou espaço para gravar na eMMC, ou a região de environment está corrompida.
+
+**Sintomas:**
+- Executa `saveenv` sem erros
+- Após `reset` e `printenv`, as variáveis sumiram
+
+**Solução:**
+1. **Tente desbloquear escrita:**
+   ```text
+   mmc dev 1
+   mmc info
+   ```
+   Verifique se o dispositivo não está protegido contra escrita
+
+2. **Use o Método 2 (Ampart):** Este dispositivo provavelmente não regenera variáveis de forma confiável. Restaure o backup e siga o método Ampart para preservar a estrutura original.
 
 ### Sistema não inicializa da eMMC
 
@@ -252,46 +298,322 @@ Escreve variáveis diretamente no offset especificado (geralmente setor 0).
 
 ---
 
-## Adicionando Novos Dispositivos
+## Extração de Variáveis U-Boot (Hardcore Mode)
 
-### 1. Obter Variáveis do U-Boot
+Esta seção é destinada a **desenvolvedores e entusiastas avançados** que desejam adicionar suporte para novos dispositivos. O processo exige conhecimentos de hardware e interface serial.
 
-Boot no sistema atual (SD/USB) e extraia as variáveis:
+### 🎯 Filosofia: "Cada Box é um Universo"
+
+Diferente de PCs padrão, **cada modelo de TV Box** pode ter uma arquitetura de bootloader completamente diferente:
+
+- **HTV H8:** Bootloader regenera variáveis automaticamente após wipe → Método 1
+- **BTV E10 / ATV A5:** Bootloader rígido, exige preservação da estrutura → Método 2
+- **Seu dispositivo:** Pode ser qualquer um dos casos acima
+
+**Não existe bala de prata.** Existe diagnóstico, teste e adaptação. Os métodos abaixo são **ferramentas de engenharia reversa**, não receitas fixas.
+
+### ⚠️ Pré-Requisitos Obrigatórios
+
+1. **Adaptador Serial TTL (UART)** de boa qualidade (3.3V, **NUNCA 5V!**)
+2. Habilidades com soldagem para acessar TX/RX/GND na placa
+3. Software de terminal serial (PuTTY, Minicom, picocom)
+4. **Paciência e metodologia**
+
+**Configuração Serial Típica:**
+- Baud Rate: **115200** (padrão Amlogic) ou 1500000 (alguns modelos)
+- Data Bits: 8
+- Stop Bits: 1  
+- Parity: None
+- Flow Control: None
 
 ```bash
-# Dumpa as variáveis do U-Boot
-fw_printenv > uboot_current.txt
+# Exemplo com picocom
+picocom -b 115200 /dev/ttyUSB0
 
-# Ou diretamente da eMMC (exemplo)
-dd if=/dev/mmcblk1 of=uboot_envs_mydevice.img bs=512 count=1 skip=0
+# Se não aparecer nada, tente baud rate alternativo
+picocom -b 1500000 /dev/ttyUSB0
+```
+
+### 🔒 Regra de Ouro: SEMPRE FAÇA BACKUP!
+
+Antes de qualquer experimento, faça backup completo da eMMC:
+
+```bash
+# Backup bit-a-bit com compressão (economiza espaço no pendrive)
+sudo dd if=/dev/mmcblkX bs=1M status=progress | gzip -c > backup_emmc_full.img.gz
+
+# Para restaurar em caso de desastre:
+# gunzip -c backup_emmc_full.img.gz | sudo dd of=/dev/mmcblkX bs=1M status=progress
+```
+
+**Por que gzip?** Um backup de 16GB vira ~2-4GB compactado, economizando muito espaço.
+
+---
+
+### Método 1: "Wipe & Auto-Regeneration" (Exemplo: HTV H8)
+
+Este método funciona em dispositivos onde o **bootloader de fábrica** (geralmente em SPI Flash ou partições protegidas) consegue recriar suas variáveis de ambiente em um offset favorável após um wipe total.
+
+#### Passo 1: O Apagão Total
+
+Após o backup, destrua completamente a estrutura da eMMC:
+
+```bash
+# Zera TODA a eMMC (sem dó)
+sudo dd if=/dev/zero of=/dev/mmcblkX bs=1M status=progress conv=fsync
+```
+
+#### Passo 2: Interceptação via Serial
+
+1. **Desligue** a box da tomada
+2. **Conecte** a interface serial aos pinos TX/RX/GND
+3. **Abra** o terminal serial no PC (ex: `picocom -b 115200 /dev/ttyUSB0`)
+4. **Ligue** a box e pressione **Enter** ou **Espaço** repetidamente
+5. Você cairá no prompt do U-Boot (ex: `sc2_ah212=>` ou `=>`)
+
+#### Passo 3: Configuração das Variáveis
+
+Execute os seguintes comandos **um por vez** no prompt do U-Boot:
+
+```text
+setenv start_autoscript 'if mmcinfo; then run start_mmc_autoscript; fi; if usb start; then run start_usb_autoscript; fi; run start_emmc_autoscript'
+setenv start_emmc_autoscript 'if fatload mmc 1 1020000 emmc_autoscript; then setenv devtype "mmc"; setenv devnum 1; autoscr 1020000; fi;'
+setenv start_mmc_autoscript 'if fatload mmc 0 1020000 s905_autoscript; then setenv devtype "mmc"; setenv devnum 0; autoscr 1020000; fi;'
+setenv start_usb_autoscript 'for usbdev in 0 1 2 3; do if fatload usb ${usbdev} 1020000 s905_autoscript; then setenv devtype "usb"; setenv devnum 0; autoscr 1020000; fi; done'
+setenv bootcmd 'run start_autoscript'
+setenv bootdelay 1
+```
+
+Salve e reinicie:
+
+```text
+saveenv
+reset
+```
+
+#### Passo 4: Teste de Persistência
+
+Após o reboot, **intercepte novamente** o U-Boot e verifique:
+
+```text
+printenv
+```
+
+**Análise do resultado:**
+
+- ✅ **Variáveis presentes?** A placa passou no teste! Continue para o Passo 5.
+- ❌ **Variáveis sumiram?** O bootloader não regenera de forma confiável. Pule para o **Método 2 (Ampart)**.
+
+#### Passo 5: Boot pelo Pendrive e Análise
+
+Conecte o pendrive com Armbian e deixe o boot prosseguir. Após o sistema iniciar:
+
+**A Lógica do Diagnóstico:**  
+Como formatamos a eMMC inteira com zeros (`0x00`), **qualquer dado diferente de zero** é algo que o U-Boot gravou ao executar `saveenv`.
+
+```bash
+# Procura a string "bootcmd=" nos primeiros 138MB
+sudo hexdump -C -n 144703488 /dev/mmcblkX | grep -C 5 "bootcmd="
+```
+
+**Exemplo de saída:**
+
+```
+02000000  00 00 00 00 62 6f 6f 74  63 6d 64 3d 72 75 6e 20  |....bootcmd=run |
+02000010  73 74 61 72 74 5f 61 75  74 6f 73 63 72 69 70 74  |start_autoscript|
+```
+
+Note a primeira coluna: `02000000` (hexadecimal) = **32 MB** em decimal.
+
+#### Passo 6: Cálculo do Corte Preciso
+
+**Não copie do início até o fim da eMMC!** Calcule exatamente o necessário:
+
+1. **Offset onde começam as variáveis:** 32 MB (do exemplo acima)
+2. **Tamanho típico do Environment:** 4-8 MB
+3. **Folga de segurança:** 4 MB adicional
+4. **Total a extrair:** 32 + 8 + 4 = **44 MB**
+
+```bash
+# Extrai apenas a região necessária (ajuste o count conforme seu cálculo)
+sudo dd if=/dev/mmcblkX of=uboot_envs_htv_h8.img bs=1M count=44 status=progress
+```
+
+**Anote para o profile:**
+- `ENV_OFFSET=0` (geralmente 0 para injetar do início)
+- `LINUX_START_SECTOR` = (44 MB + margem) × 2048 = ~94208 setores
+
+---
+
+### Método 2: "Análise Ampart" (Exemplo: BTV E10, ATV A5)
+
+Este método é necessário quando o dispositivo **não regenera** variáveis de ambiente de forma confiável após wipe total. Comum em Amlogic G12A/SM1.
+
+#### Instalação do Ampart
+
+A ferramenta `ampart` é específica para dispositivos Amlogic e não vem pré-instalada:
+
+```bash
+# Clone o repositório
+git clone https://github.com/7Ji/ampart.git
+cd ampart
+
+# Compile e instale
+make
+sudo make install
+
+# Verifique a instalação
+ampart --help
+```
+
+**Fonte:** [7Ji/ampart](https://github.com/7Ji/ampart)
+
+#### Passo 1: Preparação
+
+Se tentou o Método 1 e falhou, restaure o backup original:
+
+```bash
+gunzip -c backup_emmc_full.img.gz | sudo dd of=/dev/mmcblkX bs=1M status=progress
+```
+
+#### Passo 2: Executar Simulação Ampart
+
+Com o sistema **original** (ou backup restaurado) funcionando:
+
+```bash
+# Simula reorganização da tabela de partições
+sudo ampart /dev/mmcblkX --mode dclone data::-1:4
+```
+
+#### Passo 3: Análise Detalhada do Relatório
+
+O ampart exibirá uma tabela **EPT** (Extended Partition Table). Procure pelas linhas `env` e `data`:
+
+**Exemplo de saída:**
+
+```
+EPT report: 5 partitions in the table
+ 0: bootloader    0 (   0.00M)        400000 (   4.00M)
+ 1: reserved  400000 (   4.00M)       4000000 (  64.00M)
+ 2: cache    4400000 (  68.00M)        800000 (   8.00M)
+ 3: env      7400000 ( 116.00M)        800000 (   8.00M)
+ 4: data     8400000 ( 132.00M)     39ba00000 (  14.43G)
+```
+
+**Interpretação Crítica:**
+
+| Partição | Offset | Tamanho | Significado |
+|----------|--------|---------|-------------|
+| `bootloader` | 0 MB | 4 MB | Bootloader primário |
+| `reserved` | 4 MB | 64 MB | Área reservada (DTB, etc.) |
+| `cache` | 68 MB | 8 MB | Cache (geralmente ignorado) |
+| **`env`** | **116 MB** | **8 MB** | **Variáveis U-Boot (CRÍTICO!)** |
+| **`data`** | **132 MB** | restante | **Início do espaço livre** |
+
+**Regra de Extração:**  
+Extraia desde o byte 0 até o **início da partição `data`** (132 MB no exemplo).
+
+```bash
+# Extrai exatamente os primeiros 132 MB (conforme relatório ampart)
+sudo dd if=/dev/mmcblkX of=uboot_envs_btv_e10.img bs=1M count=132 status=progress
+```
+
+**Anote para o profile:**
+- `ENV_OFFSET=0`
+- `LINUX_START_SECTOR` = (132 MB + 4 MB margem) × 2048 = **278528** setores
+
+#### Passo 4: Validação
+
+Para garantir que capturou corretamente:
+
+```bash
+# Verifica se existe "bootcmd" no arquivo extraído
+strings uboot_envs_btv_e10.img | grep -i "bootcmd"
+```
+
+Se encontrar strings como `bootcmd=`, `start_autoscript`, etc., a extração foi bem-sucedida!
+
+---
+
+### 📊 Comparação dos Métodos
+
+| Aspecto | Método 1 (Wipe & Regen) | Método 2 (Ampart) |
+|---------|-------------------------|-------------------|
+| Complexidade | Média | Alta |
+| Arquivo Resultante | Limpo (só zeros + env) | Sujo (restos do Android) |
+| Tamanho Típico | 32-64 MB | 132 MB |
+| Requer Serial | ✅ Obrigatório | ❌ Opcional |
+| Exemplo | HTV H8 | BTV E10, ATV A5 |
+
+---
+
+### 🔧 Conversão de Offsets (Referência Rápida)
+
+```bash
+# Hexadecimal para Decimal
+echo $((0x02000000))  # Resultado: 33554432 bytes
+
+# Bytes para Megabytes
+echo $((33554432 / 1024 / 1024))  # Resultado: 32 MB
+
+# Megabytes para Setores (512 bytes)
+echo $((32 * 1024 * 1024 / 512))  # Resultado: 65536 setores
+```
+
+---
+
+## Adicionando Novos Dispositivos
+
+Após extrair as variáveis usando um dos métodos acima:
+
+Copie o arquivo `.img` extraído (via Método 1 ou 2) para o diretório de assets:
+
+```bash
+cp uboot_envs_mydevice.img armbian-install-amlogic/assets/
 ```
 
 ### 2. Criar Profile
 
-Crie um arquivo em `armbian-install-amlogic/profiles/`:
+Crie um novo arquivo de configuração em `armbian-install-amlogic/profiles/`:
+
+**Exemplo: `armbian-install-amlogic/profiles/mydevice.conf`**
 
 ```properties
 BOARD_NAME="My Device (S905X4)"
 AUTHOR="Your Name"
 ENV_OFFSET=0
 ENV_FILE="/etc/armbian-install-amlogic/assets/uboot_envs_mydevice.img"
-LINUX_START_SECTOR=262144
+LINUX_START_SECTOR=94208
 ```
 
-### 3. Adicionar Asset
+**Ajuste `LINUX_START_SECTOR` conforme seu cálculo:**
+- Método 1 (H8): (tamanho do header + margem) × 2048
+- Método 2 (Ampart): geralmente **278528** (136 MB)
 
-Copie o arquivo `.img` extraído para:
-```
-armbian-install-amlogic/assets/uboot_envs_mydevice.img
-```
-
-### 4. Instalar Configuração
+### 3. Instalar Configuração
 
 ```bash
 sudo mkdir -p /etc/armbian-install-amlogic/{assets,profiles}
 sudo cp armbian-install-amlogic/assets/* /etc/armbian-install-amlogic/assets/
 sudo cp armbian-install-amlogic/profiles/* /etc/armbian-install-amlogic/profiles/
 ```
+
+### 4. Teste
+
+Execute o instalador e verifique se o novo perfil aparece na lista de seleção:
+
+```bash
+sudo ./armbian-install-amlogic.sh
+```
+
+Se tudo estiver correto, o nome do dispositivo (`BOARD_NAME`) aparecerá no menu de seleção.
+
+### 5. Contribua!
+
+Se o perfil funcionar perfeitamente, considere contribuir com o projeto:
+- Abra uma Pull Request com o profile e asset
+- Documente peculiaridades do dispositivo
+- Inclua fotos dos pontos de soldagem da serial (se possível)
 
 ---
 
@@ -307,6 +629,70 @@ Inclui:
 - Mensagens de erro detalhadas
 
 Para debug, execute o script e consulte o log após qualquer falha.
+
+---
+
+## Notas Técnicas e Dicas Avançadas
+
+### Race Conditions em eMMC
+
+Memórias eMMC são mais lentas que SSDs. O kernel demora para criar os arquivos de dispositivo (`/dev/mmcblkXp1`) após operações de particionamento. O instalador implementa espera ativa:
+
+```bash
+partprobe /dev/mmcblkX   # Força releitura da tabela
+udevadm settle            # Aguarda estabilização do udev
+sleep 2                   # Margem adicional
+```
+
+Em dispositivos muito lentos, aumente o `sleep` para 5 segundos.
+
+### Por Que Não Usar `discard` em eMMC Barata?
+
+Muitas eMMCs de TV Box não suportam TRIM corretamente. O uso de flags `discard` no `mount` ou `mkfs` pode causar:
+- Erros de I/O durante formatação
+- Corrupção silenciosa de dados
+- Performance degradada
+
+O instalador **não usa** `discard` por padrão para máxima compatibilidade.
+
+### Diferença Entre `dd` Direct vs Buffered
+
+```bash
+# Buffered (mais rápido, mas pode não gravar imediatamente)
+dd if=file.img of=/dev/mmcblkX bs=1M
+
+# Direct (mais lento, mas garante escrita física)
+dd if=file.img of=/dev/mmcblkX bs=1M oflag=direct conv=fsync
+```
+
+O instalador usa `oflag=direct` no wipe para garantir que zeros sejam realmente escritos na eMMC, não apenas no cache.
+
+### Proteção do Bootloader (Primeiros 128MB)
+
+O offset padrão de **262144 setores (128 MB)** preserva:
+- Bootloader de fábrica (primeiros 4-8 MB)
+- Device Tree Blobs (DTBs)
+- Partições reservadas
+- Espaço para variáveis de ambiente
+
+**Nunca** comece partições Linux antes desse offset, exceto se você extraiu e analisou meticulosamente a estrutura via Método 1 ou 2.
+
+### Validação de Arquivos `.img` Extraídos
+
+Sempre valide se o arquivo de variáveis extraído contém dados relevantes:
+
+```bash
+# Verifica tamanho
+ls -lh uboot_envs_device.img
+
+# Procura strings reconhecíveis
+strings uboot_envs_device.img | grep -E "bootcmd|bootdelay|start_autoscript"
+
+# Visualiza em hex (primeiros 512 bytes)
+hexdump -C uboot_envs_device.img | head -32
+```
+
+Se o arquivo estiver vazio ou cheio de zeros, a extração falhou.
 
 ---
 
