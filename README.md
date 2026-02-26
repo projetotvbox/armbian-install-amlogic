@@ -143,6 +143,52 @@ Dispositivos podem especificar `LINUX_START_SECTOR` diferente do padrão (262144
 
 ---
 
+## Preparação Inicial
+
+### ⚠️ Descompactação dos Assets (OBRIGATÓRIO)
+
+Os arquivos de variáveis U-Boot (`*.img`) estão **compactados com gzip** no repositório devido ao limite de tamanho do GitHub (100MB). Antes de usar o instalador pela primeira vez, você **DEVE** descompactá-los.
+
+#### Por que os arquivos estão compactados?
+
+Os arquivos `.img` contêm imagens binárias das variáveis do U-Boot extraídas de dispositivos reais. Esses arquivos têm dezenas de megabytes e, quando compactados, reduzem drasticamente de tamanho (tipicamente 90%+), permitindo que sejam versionados no Git.
+
+#### Como descompactar:
+
+**Método Recomendado (Descompacta todos os assets):**
+
+```bash
+cd armbian-install-amlogic/assets/
+gunzip -k *.img.gz
+cd ../..
+```
+
+A flag `-k` mantém os arquivos `.gz` originais intactos.
+
+**Método Alternativo (Descompacta um asset específico):**
+
+```bash
+# Exemplo: apenas para ATV A5
+gunzip -k armbian-install-amlogic/assets/uboot_envs_atv_a5.img.gz
+```
+
+#### Verificação
+
+Após descompactar, confirme que os arquivos `.img` existem:
+
+```bash
+ls -lh armbian-install-amlogic/assets/*.img
+```
+
+Você deve ver arquivos como:
+- `uboot_envs_atv_a5.img`
+- `uboot_envs_btv_e10.img`
+- `uboot_envs_htv_h8.img`
+
+**Sem essa etapa, o instalador falhará** ao tentar injetar as variáveis do U-Boot, resultando em erro durante a instalação.
+
+---
+
 ## Uso
 
 ### Instalação Padrão
@@ -566,11 +612,22 @@ echo $((32 * 1024 * 1024 / 512))  # Resultado: 65536 setores
 
 Após extrair as variáveis usando um dos métodos acima:
 
-Copie o arquivo `.img` extraído (via Método 1 ou 2) para o diretório de assets:
+### 1. Preparar Assets
+
+Copie e **comprima** o arquivo `.img` extraído para o diretório de assets:
 
 ```bash
+# Copie o arquivo para o diretório de assets
 cp uboot_envs_mydevice.img armbian-install-amlogic/assets/
+
+# Comprima com máxima compressão (IMPORTANTE para o Git)
+gzip -9 armbian-install-amlogic/assets/uboot_envs_mydevice.img
 ```
+
+**Por que comprimir?**  
+Arquivos `.img` excedem o limite de 100MB do GitHub. A compressão gzip reduz drasticamente o tamanho (geralmente >90%), permitindo versionamento no Git. Os usuários descompactam antes de instalar (veja seção [Preparação Inicial](#preparação-inicial)).
+
+**Resultado:** Você terá `uboot_envs_mydevice.img.gz` pronto para commit.
 
 ### 2. Criar Profile
 
@@ -611,9 +668,14 @@ Se tudo estiver correto, o nome do dispositivo (`BOARD_NAME`) aparecerá no menu
 ### 5. Contribua!
 
 Se o perfil funcionar perfeitamente, considere contribuir com o projeto:
-- Abra uma Pull Request com o profile e asset
+- Abra uma Pull Request com o profile e asset **compactado (`.img.gz`)**
 - Documente peculiaridades do dispositivo
 - Inclua fotos dos pontos de soldagem da serial (se possível)
+
+**⚠️ IMPORTANTE para PRs:**  
+- Sempre commite arquivos `.img.gz` (compactados), NUNCA `.img` (descompactados)
+- O `.gitignore` está configurado para aceitar apenas `.img.gz`
+- Verifique o tamanho do arquivo antes do commit (deve ser <100MB)
 
 ---
 

@@ -1,2 +1,6 @@
+# Arquivo usado apenas para estudo
 armbian-install-ophub.sh
-/armbian-install-amlogic/assets/**
+
+# Assets: Ignora arquivos .img descompactados, mas mantém .img.gz (compactados)
+/armbian-install-amlogic/assets/*.img
+!/armbian-install-amlogic/assets/*.img.gz
