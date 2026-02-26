@@ -2,7 +2,7 @@
 
 Instalador automatizado de Armbian em dispositivos TV Box baseados em AMLogic, com suporte especial para dispositivos com bootloader locked.
 
-**Autor:** Pedro Rigolin
+**Autor:** [Pedro Rigolin](https://github.com/pedrohrigolin)
 
 ---
 
