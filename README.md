@@ -207,35 +207,105 @@ Você deve ver arquivos como:
 
 ---
 
-## Uso
+## Instalação no Sistema
 
-### Instalação Padrão
+Para usar o instalador de forma permanente no sistema, siga os passos abaixo:
+
+### 1. Descompactar Assets (se ainda não fez)
 
 ```bash
-sudo ./armbian-install-amlogic.sh
+cd armbian-install-amlogic/assets/
+gunzip -k *.img.gz
+cd ../..
 ```
 
-O script guiará você por:
-1. Seleção do disco eMMC de destino
-2. Seleção do perfil do dispositivo
-3. Confirmações de segurança
-4. Instalação automática
+### 2. Copiar Script Principal
+
+```bash
+sudo cp armbian-install-amlogic.sh /usr/bin/armbian-install-amlogic
+sudo chmod +x /usr/bin/armbian-install-amlogic
+```
+
+### 3. Copiar Configurações e Assets
+
+```bash
+sudo cp -r armbian-install-amlogic /etc/
+```
+
+### 4. Definir Permissões Corretas
+
+```bash
+# Permissões para diretórios (755) e arquivos (644)
+sudo chmod -R 755 /etc/armbian-install-amlogic
+sudo find /etc/armbian-install-amlogic -type f -exec chmod 644 {} \;
+```
+
+**Explicação das permissões:**
+- `755` para diretórios: Permite navegação e listagem
+- `644` para arquivos: Leitura para todos, escrita apenas para root
+
+### 5. Executar o Instalador
+
+Após a instalação, execute de qualquer lugar:
+
+```bash
+sudo armbian-install-amlogic
+```
+
+---
+
+## Uso
+
+O instalador apresenta uma interface interativa (TUI) que guiará você através do processo:
+
+### Fluxo de Instalação
+
+1. **Seleção do disco eMMC de destino**
+   - Detecta automaticamente discos disponíveis
+   - Exclui o disco atual do sistema
+
+2. **Seleção do perfil do dispositivo**
+   - Lista perfis disponíveis (ATV A5, BTV E10, HTV H8)
+   - Opção "Generic" para dispositivos não listados
+
+3. **Confirmações de segurança**
+   - Avisos sobre apagamento de dados
+   - Confirmação de dispositivo correto
+
+4. **Instalação automática**
+   - Wipe do disco
+   - Injeção de variáveis U-Boot (se aplicável)
+   - Particionamento e formatação
+   - Cópia de dados
+   - Configuração de boot
 
 ### Modos de Operação
 
 #### 1. Instalação com Perfil (Recomendado)
 
 Selecione o perfil correspondente ao seu dispositivo. O instalador:
-- Carregará configurações específicas
-- Injetará variáveis do U-Boot (se necessário)
-- Aplicará offsets corretos de partições
+- ✅ Carregará configurações específicas
+- ✅ Injetará variáveis do U-Boot (se necessário)
+- ✅ Aplicará offsets corretos de partições
+- ✅ Maximiza chances de boot bem-sucedido
+
+**Dispositivos suportados:**
+- ATV A5 (S905X3)
+- BTV E10 (S905X2)
+- HTV H8 (Rockchip/Allwinner)
 
 #### 2. Instalação Genérica (Avançado)
 
 Para dispositivos com bootloader desbloqueado ou não listados:
-- **Não injeta** variáveis do U-Boot
-- Usa offset padrão (128MB)
+- ⚠️ **Não injeta** variáveis do U-Boot
+- ⚠️ Usa offset padrão (128MB / setor 262144)
 - ⚠️ Pode resultar em tela preta em dispositivos locked
+- ℹ️ Use apenas se souber o que está fazendo
+
+**Quando usar:**
+- Dispositivo tem bootloader desbloqueado
+- Você tem certeza de que não precisa de variáveis customizadas
+- Está testando um novo modelo
 
 ---
 
