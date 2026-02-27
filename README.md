@@ -2,8 +2,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Shell Script](https://img.shields.io/badge/Shell_Script-Bash-green.svg)](https://www.gnu.org/software/bash/)
+[![Armbian](https://img.shields.io/badge/Armbian-Focused-orange.svg)](https://www.armbian.com/)
+[![AMLogic](https://img.shields.io/badge/AMLogic-S905X%2FX2%2FX3-blue.svg)](https://en.wikipedia.org/wiki/Amlogic)
 
-Instalador automatizado de Armbian em dispositivos TV Box baseados em AMLogic, com suporte especial para dispositivos com bootloader locked.
+Instalador automatizado para transferir **Armbian** de pendrive/SD para eMMC em TV Boxes AMLogic, com suporte especial para dispositivos com bootloader locked. Desenvolvido especificamente para Armbian, mas adaptável para outras distribuições Linux ARM com conhecimentos técnicos.
 
 **Autor:** [Pedro Rigolin](https://github.com/pedrohrigolin)
 
@@ -27,7 +29,7 @@ Este código foi desenvolvido especificamente para automatizar a instalação do
 
 ## Visão Geral
 
-Este instalador permite transferir um sistema Armbian rodando em pendrive/cartão SD para a memória eMMC interna de TV Boxes AMLogic (S905X, S905X2, S905X3, etc.). O processo é totalmente interativo via TUI (dialog) e inclui suporte para dispositivos que requerem injeção de variáveis do U-Boot.
+Este instalador permite transferir um sistema **Armbian** rodando em pendrive/cartão SD para a memória eMMC interna de TV Boxes AMLogic (S905X, S905X2, S905X3, etc.). O processo é totalmente interativo via TUI (dialog) e inclui suporte para dispositivos que requerem injeção de variáveis do U-Boot.
 
 ### Estrutura Esperada do Dispositivo de Boot
 
@@ -37,6 +39,25 @@ O instalador assume que o sistema atual está rodando de um dispositivo removív
 Partição 1: BOOT (FAT32, até 512MB)
 Partição 2: ROOTFS (ext4, restante do espaço)
 ```
+
+### 🔧 Compatibilidade e Adaptabilidade
+
+**Este instalador foi desenvolvido especificamente para o Armbian**, otimizado para sua estrutura de boot e arquivos de configuração (`armbianEnv.txt`, DTBs, etc.).
+
+**Pode ser adaptado para outras distribuições Linux?**
+
+✅ **Sim**, desde que a distribuição siga a mesma estrutura de partições (BOOT FAT32 + ROOTFS ext4). Exemplos:
+- Debian com particionamento similar
+- Ubuntu para ARM
+- Outras distros baseadas em Debian/Ubuntu
+
+⚠️ **Porém, requer conhecimentos técnicos**:
+- Entendimento de U-Boot e scripts de boot
+- Modificação de caminhos e arquivos de configuração no código
+- Ajuste de verificações específicas do Armbian
+- Testes extensivos para garantir boot correto
+
+**Recomendação:** Se você não tem experiência com bootloaders ARM e shell scripting avançado, use o instalador **apenas com Armbian** conforme projetado.
 
 ---
 
@@ -50,7 +71,7 @@ Partição 2: ROOTFS (ext4, restante do espaço)
 - ✅ **Sistema de cleanup automático** (desmonta em caso de erro/interrupção)
 - ✅ **Verificação de dependências** com instalação automática
 - ✅ **Lock de instância única** (previne execuções simultâneas)
-- ✅ **Preservação do bootloader de fábrica** (primeiros 128MB)
+- ✅ **Particionamento customizável** por perfil de dispositivo
 
 ---
 
@@ -145,19 +166,27 @@ graph TD
 ```
 eMMC Layout:
 ┌─────────────────────┬──────────────────┬───────────────────────┐
-│  Bootloader Area    │  BOOT (FAT32)   │   ROOTFS (ext4)      │
-│  (0 - 128MB)       │  (512MB)        │   (restante)         │
-│  Setor 0-262143    │  Setor 262144+  │   Setor calculado    │
+│  Reserved Area      │  BOOT (FAT32)   │   ROOTFS (ext4)      │
+│  (varia por perfil) │  (512MB)        │   (restante)         │
+│  Início → Offset    │  Offset+        │   Calculado          │
 └─────────────────────┴──────────────────┴───────────────────────┘
 ```
 
-- **Bootloader Area**: Primeiros 128MB (setores 0-262143) preservados para bootloader de fábrica
+- **Reserved Area**: Região inicial reservada para variáveis U-Boot injetadas (tamanho varia por dispositivo)
 - **BOOT Partition**: 512MB FAT32, contém kernel, DTB, scripts de boot
 - **ROOTFS Partition**: ext4, ocupa todo espaço restante
 
 ### Customização via Perfil
 
-Dispositivos podem especificar `LINUX_START_SECTOR` diferente do padrão (262144). Exemplo: BTV E10 usa 278528.
+Cada dispositivo define seu próprio `LINUX_START_SECTOR` (onde começa a partição BOOT):
+
+| Perfil | LINUX_START_SECTOR | Tamanho Reserved | Método Extração |
+|--------|-------------------|------------------|-----------------|
+| HTV H8 | 262144 | 128 MB | Método 1 (Regeneração) |
+| BTV E10 | 278528 | 136 MB | Método 2 (Ampart) |
+| ATV A5 | 278528 | 136 MB | Método 2 (Ampart) |
+
+O offset correto é determinado durante o processo de extração das variáveis U-Boot (veja [Extração de Variáveis U-Boot](#extração-de-variáveis-u-boot-hardcore-mode)).
 
 ---
 
@@ -298,7 +327,7 @@ Selecione o perfil correspondente ao seu dispositivo. O instalador:
 
 Para dispositivos com bootloader desbloqueado ou não listados:
 - ⚠️ **Não injeta** variáveis do U-Boot
-- ⚠️ Usa offset padrão (128MB / setor 262144)
+- ⚠️ Usa offset conservador (128MB / setor 262144)
 - ⚠️ Pode resultar em tela preta em dispositivos locked
 - ℹ️ Use apenas se souber o que está fazendo
 
@@ -574,14 +603,15 @@ sudo dd if=/dev/mmcblkX of=uboot_envs_htv_h8.img bs=1M count=44 status=progress
 ```
 
 **Anote para o profile:**
-- `ENV_OFFSET=0` (geralmente 0 para injetar do início)
-- `LINUX_START_SECTOR` = (44 MB + margem) × 2048 = ~94208 setores
+- `ENV_OFFSET` = offset em setores onde as variáveis começam (calculado do hexdump)
+- `LINUX_START_SECTOR` = (tamanho extraído + margem de segurança) × 2048
+  - Exemplo: Se extraiu 44 MB, use margem até 128 MB = 262144 setores
 
 ---
 
 ### Método 2: "Análise Ampart" (Exemplo: BTV E10, ATV A5)
 
-Este método é necessário quando o dispositivo **não regenera** variáveis de ambiente de forma confiável após wipe total. Comum em Amlogic G12A/SM1.
+Este método é necessário quando o dispositivo **não regenera** variáveis de ambiente de forma confiável após wipe total.
 
 #### Instalação do Ampart
 
@@ -726,14 +756,16 @@ Crie um novo arquivo de configuração em `armbian-install-amlogic/profiles/`:
 ```properties
 BOARD_NAME="My Device (S905X4)"
 AUTHOR="Your Name"
-ENV_OFFSET=0
+ENV_OFFSET=237568
 ENV_FILE="/etc/armbian-install-amlogic/assets/uboot_envs_mydevice.img"
-LINUX_START_SECTOR=94208
+LINUX_START_SECTOR=262144
 ```
 
-**Ajuste `LINUX_START_SECTOR` conforme seu cálculo:**
-- Método 1 (H8): (tamanho do header + margem) × 2048
-- Método 2 (Ampart): geralmente **278528** (136 MB)
+**Ajuste os valores conforme seu método de extração:**
+- `ENV_OFFSET`: Setor onde as variáveis foram gravadas (extraído do hexdump ou relatório ampart)
+- `LINUX_START_SECTOR`: Offset seguro após as variáveis U-Boot
+  - Método 1: Use margem conservadora (ex: 262144 = 128 MB)
+  - Método 2 (Ampart): Use início da partição `data` + margem (ex: 278528 = 136 MB)
 
 ### 3. Instalar Configuração
 
@@ -817,15 +849,26 @@ dd if=file.img of=/dev/mmcblkX bs=1M oflag=direct conv=fsync
 
 O instalador usa `oflag=direct` no wipe para garantir que zeros sejam realmente escritos na eMMC, não apenas no cache.
 
-### Proteção do Bootloader (Primeiros 128MB)
+### Offset de Particionamento Seguro
 
-O offset padrão de **262144 setores (128 MB)** preserva:
-- Bootloader de fábrica (primeiros 4-8 MB)
-- Device Tree Blobs (DTBs)
-- Partições reservadas
-- Espaço para variáveis de ambiente
+O instalador usa um **offset inicial customizado por perfil** para garantir que as partições Linux não sobrescrevam as variáveis U-Boot injetadas.
 
-**Nunca** comece partições Linux antes desse offset, exceto se você extraiu e analisou meticulosamente a estrutura via Método 1 ou 2.
+**Exemplos de offsets utilizados:**
+
+| Dispositivo | Offset (setores) | Tamanho (MB) | Método / Motivo |
+|-------------|------------------|--------------|--------|
+| **HTV H8** | 262144 | 128 MB | Método 1 - Variáveis regeneradas, offset conservador |
+| **BTV E10** | 278528 | 136 MB | Método 2 - Estrutura Amlogic preservada via ampart |
+| **ATV A5** | 278528 | 136 MB | Método 2 - Estrutura Amlogic preservada via ampart |
+| **Generic** | 262144 | 128 MB | Sem perfil - Margem conservadora |
+
+**Por que o offset é necessário?**
+- Deixar espaço para as variáveis U-Boot injetadas
+- Evitar conflito com estruturas residuais do Android
+- Garantir alinhamento adequado para performance da eMMC
+- Acomodar diferentes layouts de dispositivos AMLogic
+
+**Regra de Ouro:** Cada perfil define seu `LINUX_START_SECTOR` baseado no método de extração usado (Método 1 ou 2). O instalador **nunca** começa partições Linux antes dessa posição segura.
 
 ### Validação de Arquivos `.img` Extraídos
 
@@ -898,5 +941,7 @@ Este instalador modifica a memória eMMC do dispositivo. Operações incorretas 
 - Perda de garantia
 
 **Sempre faça backup** de dados importantes antes de usar este instalador.
+
+**Compatibilidade:** Este instalador foi desenvolvido e testado especificamente para **Armbian**. O uso com outras distribuições Linux não foi testado e pode resultar em falhas de boot ou problemas de sistema.
 
 O autor não se responsabiliza por danos ao hardware ou perda de dados.
