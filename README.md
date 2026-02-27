@@ -7,7 +7,7 @@ Instalador automatizado de Armbian em dispositivos TV Box baseados em AMLogic, c
 
 **Autor:** [Pedro Rigolin](https://github.com/pedrohrigolin)
 
-**Projeto:** Desenvolvido para o [Projeto TVBox](https://github.com/projeto-tvbox) do **Instituto Federal de São Paulo (IFSP)**, Campus Salto
+**Projeto:** Desenvolvido para o [Projeto TVBox](https://github.com/projetotvbox) do **Instituto Federal de São Paulo (IFSP)**, Campus Salto
 
 ---
 
