@@ -44,8 +44,8 @@ Automated installer to transfer **Armbian** from USB/SD to eMMC on AMLogic TV Bo
 - [💡 Technical Notes and Advanced Tips](#-technical-notes-and-advanced-tips)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🙏 Credits](#-credits)
-- [� Contributors](#-contributors)
-- [�📄 License](#-license)
+- [👥 Contributors](#-contributors)
+- [📄 License](#-license)
 - [⚠️ Legal Disclaimer](#️-legal-disclaimer)
 
 ---
@@ -1322,7 +1322,7 @@ During development, the following projects were studied as technical reference:
 
 ---
 
-## � Contributors
+## 👥 Contributors
 
 ### Main Author
 
@@ -1347,7 +1347,7 @@ All contributions are welcome! 🎉
 
 ---
 
-## �📄 License
+## 📄 License
 
 This project is licensed under the **MIT License**.
 

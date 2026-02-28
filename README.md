@@ -15,7 +15,7 @@ Instalador automatizado para transferir **Armbian** de pendrive/SD para eMMC em 
 
 ---
 
-## � Sumário
+## 📑 Sumário
 
 - [📦 Sobre o Projeto TVBox](#-sobre-o-projeto-tvbox)
 - [🔍 Visão Geral](#-visão-geral)
@@ -44,8 +44,8 @@ Instalador automatizado para transferir **Armbian** de pendrive/SD para eMMC em 
 - [💡 Notas Técnicas e Dicas Avançadas](#-notas-técnicas-e-dicas-avançadas)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🙏 Créditos](#-créditos)
-- [� Contribuidores](#-contribuidores)
-- [�📄 Licença](#-licença)
+- [👥 Contribuidores](#-contribuidores)
+- [📄 Licença](#-licença)
 - [⚠️ Aviso Legal](#️-aviso-legal)
 
 ---
@@ -1322,7 +1322,7 @@ Durante o desenvolvimento, os seguintes projetos foram estudados como referênci
 
 ---
 
-## � Contribuidores
+## 👥 Contribuidores
 
 ### Autor Principal
 
@@ -1347,7 +1347,7 @@ Todas as contribuições são bem-vindas! 🎉
 
 ---
 
-## �📄 Licença
+## 📄 Licença
 
 Este projeto é licenciado sob a **MIT License**.
 
