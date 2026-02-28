@@ -1148,15 +1148,7 @@ Se tudo estiver correto, o nome do dispositivo (`BOARD_NAME`) aparecerá no menu
 
 ### 6. Contribua!
 
-Se o perfil funcionar perfeitamente, considere contribuir com o projeto:
-- Abra uma Pull Request com o profile e asset **compactado (`.img.gz`)**
-- Documente peculiaridades do dispositivo
-- Inclua fotos dos pontos de soldagem da serial (se possível)
-
-**⚠️ IMPORTANTE para PRs:**  
-- Sempre commite arquivos `.img.gz` (compactados), NUNCA `.img` (descompactados)
-- O `.gitignore` está configurado para aceitar apenas `.img.gz`
-- Verifique o tamanho do arquivo antes do commit (deve ser <100MB)
+Se o perfil funcionar perfeitamente, **contribua com o projeto!** Consulte o [Guia de Contribuição](CONTRIBUTING.md) para instruções detalhadas sobre como submeter novos perfis de dispositivos.
 
 ---
 
@@ -1334,16 +1326,17 @@ Este projeto agradece a todos que contribuíram com código, documentação, tes
 
 > Veja a lista completa de contribuidores em: [Contributors](https://github.com/projetotvbox/armbian-install-amlogic-project/graphs/contributors)
 
-**Como contribuir:**
+### Como Contribuir
 
-Se você deseja contribuir com o projeto:
-1. Faça um fork do repositório
-2. Crie uma branch para sua feature (`git checkout -b feature/MinhaFeature`)
-3. Commit suas mudanças (`git commit -m 'Adiciona nova feature'`)
-4. Push para a branch (`git push origin feature/MinhaFeature`)
-5. Abra um Pull Request
+Todas as contribuições são bem-vindas! Para saber como contribuir com o projeto, consulte nosso **[Guia de Contribuição](CONTRIBUTING.md)**.
 
-Todas as contribuições são bem-vindas! 🎉
+Formas de contribuir:
+- 🆕 **Adicionar suporte para novos dispositivos** (perfis e assets)
+- 🐛 **Reportar bugs** e problemas encontrados
+- 📝 **Melhorar documentação** (correções, traduções, exemplos)
+- 💻 **Contribuir com código** (features, fixes, melhorias)
+
+👉 **[Leia o guia completo de contribuição »](CONTRIBUTING.md)**
 
 ---
 
