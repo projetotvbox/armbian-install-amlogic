@@ -13,7 +13,41 @@ Instalador automatizado para transferir **Armbian** de pendrive/SD para eMMC em 
 
 ---
 
-## 📦 Sobre o Projeto TVBox
+## � Sumário
+
+- [📦 Sobre o Projeto TVBox](#-sobre-o-projeto-tvbox)
+- [🔍 Visão Geral](#-visão-geral)
+  - [🎯 Contexto e Motivação](#-contexto-e-motivação)
+  - [📋 Estrutura Esperada do Dispositivo de Boot](#-estrutura-esperada-do-dispositivo-de-boot)
+  - [🔧 Compatibilidade e Adaptabilidade](#-compatibilidade-e-adaptabilidade)
+- [✨ Características](#-características)
+- [🚀 Preparação Inicial](#-preparação-inicial)
+- [💾 Instalação no Sistema](#-instalação-no-sistema)
+- [📱 Uso](#-uso)
+  - [Fluxo de Instalação](#fluxo-de-instalação)
+  - [Modos de Operação](#modos-de-operação)
+- [🔧 Detalhes Técnicos](#-detalhes-técnicos)
+  - [Dependências](#dependências)
+  - [Arquitetura do Projeto](#arquitetura-do-projeto)
+  - [Layout de Partições](#layout-de-partições)
+  - [Fluxo Interno Detalhado](#fluxo-interno-detalhado)
+- [🔬 Extração de Variáveis U-Boot](#-extração-de-variáveis-u-boot-hardcore-mode)
+  - [🎯 Filosofia: "Cada Box é um Universo"](#-filosofia-cada-box-é-um-universo)
+  - [⚠️ Pré-Requisitos Obrigatórios](#️-pré-requisitos-obrigatórios)
+  - [Método 1: Wipe & Auto-Regeneration](#método-1-wipe--auto-regeneration-exemplo-htv-h8)
+  - [Método 2: Análise Ampart](#método-2-análise-ampart-exemplo-btv-e10-atv-a5)
+  - [🔧 Conversão de Offsets](#-conversão-de-offsets-referência-rápida)
+- [➕ Adicionando Novos Dispositivos](#-adicionando-novos-dispositivos)
+- [📋 Logs e Debug](#-logs-e-debug)
+- [💡 Notas Técnicas e Dicas Avançadas](#-notas-técnicas-e-dicas-avançadas)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [🙏 Créditos](#-créditos)
+- [📄 Licença](#-licença)
+- [⚠️ Aviso Legal](#️-aviso-legal)
+
+---
+
+## �📦 Sobre o Projeto TVBox
 
 Este instalador foi desenvolvido como parte do **Projeto TVBox do IFSP Campus Salto**, uma iniciativa que visa dar novo propósito a dispositivos TV Box apreendidos pela Receita Federal.
 
@@ -27,7 +61,7 @@ Este código foi desenvolvido especificamente para automatizar a instalação do
 
 ---
 
-## Visão Geral
+## 🔍 Visão Geral
 
 ### 🎯 Contexto e Motivação
 
@@ -45,7 +79,7 @@ Quando o sistema Armbian é convertido para essa estrutura de 2 partições (nec
 Este instalador **restaura a automação** de transferência do sistema para a eMMC interna, adaptado especificamente para a estrutura dual de partições exigida por TV Boxes AMLogic. Além disso, ele oferece:
 
 - ✅ **Instalação automatizada** de Armbian dual-partition para eMMC
-- ✅ **Injeção de variáveis U-Boot** (frequentemente necessárias em TV Boxes com bootloader locked)
+- ✅ **Injeção de variáveis U-Boot** ([por que isso?](#assets-u-boot-environment)) para dispositivos locked
 - ✅ **Interface interativa** (TUI) para seleção de dispositivos e perfis
 - ✅ **Suporte a perfis específicos** por dispositivo (offsets customizados)
 
@@ -97,12 +131,12 @@ Partição 2: ROOTFS (ext4, restante do espaço)
 
 ---
 
-## Características
+## ✨ Características
 
 - ✅ **Interface interativa** com menus dialog
 - ✅ **Detecção automática** de discos eMMC disponíveis
 - ✅ **Perfis específicos** por dispositivo (ATV A5, BTV E10, HTV H8)
-- ✅ **Injeção de variáveis U-Boot** para dispositivos locked
+- ✅ **Injeção de variáveis U-Boot** ([por que isso?](#assets-u-boot-environment)) para dispositivos locked
 - ✅ **Logging detalhado** para debug (`/tmp/armbian-install-amlogic.log`)
 - ✅ **Sistema de cleanup automático** (desmonta em caso de erro/interrupção)
 - ✅ **Verificação de dependências** com instalação automática
@@ -111,7 +145,7 @@ Partição 2: ROOTFS (ext4, restante do espaço)
 
 ---
 
-## Preparação Inicial
+## 🚀 Preparação Inicial
 
 ### ⚠️ Descompactação dos Assets (OBRIGATÓRIO)
 
@@ -157,7 +191,7 @@ Você deve ver arquivos como:
 
 ---
 
-## Instalação no Sistema
+## 💾 Instalação no Sistema
 
 > **📍 Contexto Importante:** Os comandos abaixo devem ser executados **no sistema Armbian rodando do pendrive/cartão SD**. O instalador precisa estar disponível no sistema removível antes de usá-lo para transferir o Armbian para a eMMC interna do dispositivo.
 
@@ -208,7 +242,7 @@ sudo armbian-install-amlogic
 
 ---
 
-## Uso
+## 📱 Uso
 
 O instalador apresenta uma interface interativa (TUI) que guiará você através do processo:
 
@@ -263,7 +297,7 @@ Para dispositivos com bootloader desbloqueado ou não listados:
 
 ---
 
-## Detalhes Técnicos
+## 🔧 Detalhes Técnicos
 
 ### Dependências
 
@@ -319,6 +353,13 @@ Os arquivos `.img` nos assets **preservam e reinjetam** as variáveis permissiva
 - Boot alternativo por SD/USB continue funcionando
 - O sistema tenha a mesma flexibilidade do Android/firmware original
 
+**Quando os assets NÃO são necessários?**
+
+Se o seu dispositivo possui **bootloader desbloqueado ou já é permissivo de fábrica** (não foi customizado pelo fabricante), você pode usar tranquilamente a **instalação genérica** sem injeção de variáveis U-Boot. Neste caso:
+- O bootloader já procura kernels em múltiplas mídias (SD/USB/eMMC)
+- Não há variáveis customizadas que serão perdidas no wipe
+- A instalação funcionará normalmente sem os assets
+
 #### Profiles (Configuração por Dispositivo)
 
 Cada arquivo `.conf` contém:
@@ -338,9 +379,9 @@ Cada arquivo `.conf` contém:
 ```
 eMMC Layout:
 ┌─────────────────────┬──────────────────┬───────────────────────┐
-│  Reserved Area      │  BOOT (FAT32)   │   ROOTFS (ext4)      │
-│  (varia por perfil) │  (512MB)        │   (restante)         │
-│  Início → Offset    │  Offset+        │   Calculado          │
+│  Reserved Area      │  BOOT (FAT32)    │   ROOTFS (ext4)       │
+│  (varia por perfil) │  (512MB)         │   (restante)          │
+│  Início → Offset    │  Offset+         │   Calculado           │
 └─────────────────────┴──────────────────┴───────────────────────┘
 ```
 
@@ -389,34 +430,41 @@ Este diagrama mostra o fluxo de execução interno do instalador, incluindo toda
 flowchart TD
     A[Início] --> B{Verificar<br/>Root}
     B -->|Não| C[Erro: Execute como root]
-    B -->|Sim| D[Carregar Perfil]
-    D --> E{Perfil<br/>Válido?}
-    E -->|Não| F[Erro: Perfil não encontrado]
-    E -->|Sim| G[Detectar Boot Source]
-    G --> H{SD/USB<br/>ou eMMC?}
-    H -->|eMMC| I[Erro: Já instalado na eMMC]
-    H -->|SD/USB| J[Selecionar Dispositivo Alvo]
-    J --> K[Confirmar Instalação]
-    K --> L[Copiar Dados BOOT/ROOTFS]
-    L --> M[Particionar eMMC]
-    M --> N[Formatar Partições]
-    N --> O[Montar Partições]
-    O --> P[Copiar Sistema]
-    P --> Q[Atualizar UUIDs]
-    Q --> R{Arquivo<br/>ENV_FILE<br/>existe?}
-    R -->|Não| S[Aviso: Variáveis não injetadas]
-    R -->|Sim| T[Injetar Variáveis U-Boot]
-    T --> U[Sincronizar Dados]
-    U --> V[Desmontar Partições]
-    V --> W[Instalação Completa]
-    S --> W
-    W --> X[Fim]
-    C --> X
-    F --> X
-    I --> X
+    B -->|Sim| D[Listar Perfis Disponíveis]
+    D --> E[Usuário Seleciona Perfil]
+    E --> F{ENV_FILE<br/>especificado?}
+    F -->|Sim| G{Arquivo<br/>existe?}
+    F -->|Não| H[Modo Genérico: Sem Injeção]
+    G -->|Não| I[Erro: ENV_FILE não encontrado]
+    G -->|Sim| J[Detectar Boot Source]
+    H --> J
+    J --> K{SD/USB<br/>ou eMMC?}
+    K -->|eMMC| L[Erro: Já instalado na eMMC]
+    K -->|SD/USB| M[Selecionar Dispositivo Alvo]
+    M --> N[Confirmar Instalação]
+    N --> O[Wipe da eMMC]
+    O --> P{ENV_FILE<br/>existe?}
+    P -->|Sim| Q[Injetar Variáveis U-Boot]
+    P -->|Não| R[Pular Injeção]
+    Q --> S[Particionar eMMC]
+    R --> S
+    S --> T[Formatar Partições]
+    T --> U[Montar Partições]
+    U --> V[Copiar Sistema]
+    V --> W[Atualizar UUIDs]
+    W --> X[Sincronizar Dados]
+    X --> Y[Desmontar Partições]
+    Y --> Z[Instalação Completa]
+    Z --> AA[Fim]
+    C --> AA
+    I --> AA
+    L --> AA
 ```
 
-> **Nota para Desenvolvedores**: As variáveis U-Boot são injetadas no offset definido em `ENV_OFFSET` (geralmente setor 0 ou próximo) do dispositivo eMMC. Se o arquivo não existir, o sistema será copiado, mas o bootloader não saberá onde procurar o kernel.
+> **Nota para Desenvolvedores**: 
+> - **Validação de perfil**: O instalador valida apenas se o `ENV_FILE` especificado existe no caminho configurado. Se o arquivo não existir, aborta com erro.
+> - **Injeção de variáveis**: As variáveis U-Boot são injetadas no offset definido em `ENV_OFFSET` (varia por dispositivo: 0, 237568, etc.) usando `dd` com `seek`.
+> - **Modo Genérico**: Se `ENV_FILE` e `ENV_OFFSET` não forem definidos no perfil, o instalador desabilita injeção automaticamente mas continua a instalação.
 
 ### Operações de Disco
 
@@ -466,7 +514,7 @@ Escreve variáveis diretamente no offset especificado (geralmente setor 0).
 
 ---
 
-## Extração de Variáveis U-Boot (Hardcore Mode)
+## 🔬 Extração de Variáveis U-Boot (Hardcore Mode)
 
 Esta seção é destinada a **desenvolvedores e entusiastas avançados** que desejam adicionar suporte para novos dispositivos. O processo exige conhecimentos de hardware e interface serial.
 
@@ -949,7 +997,7 @@ hex2mb  # Digite 0x07400000 → Resultado: 116 MB
 
 ---
 
-## Adicionando Novos Dispositivos
+## ➕ Adicionando Novos Dispositivos
 
 Após extrair as variáveis usando um dos métodos acima:
 
@@ -1109,7 +1157,7 @@ Se o perfil funcionar perfeitamente, considere contribuir com o projeto:
 
 ---
 
-## Logs e Debug
+## 📋 Logs e Debug
 
 Todos os logs são gravados em: `/tmp/armbian-install-amlogic.log`
 
@@ -1124,7 +1172,7 @@ Para debug, execute o script e consulte o log após qualquer falha.
 
 ---
 
-## Notas Técnicas e Dicas Avançadas
+## 💡 Notas Técnicas e Dicas Avançadas
 
 ### Race Conditions em eMMC
 
@@ -1178,7 +1226,7 @@ Se o arquivo estiver vazio ou cheio de zeros, a extração falhou.
 
 ---
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
 ### Tela preta após instalação
 
@@ -1247,7 +1295,7 @@ Se o arquivo estiver vazio ou cheio de zeros, a extração falhou.
 
 ---
 
-## Créditos
+## 🙏 Créditos
 
 **Este é um projeto independente**, desenvolvido do zero com objetivos e arquitetura próprios.
 
@@ -1289,7 +1337,7 @@ A licença MIT permite uso livre (incluindo comercial), modificação e distribu
 
 ---
 
-## Aviso Legal
+## ⚠️ Aviso Legal
 
 ⚠️ **USE POR SUA CONTA E RISCO**
 
