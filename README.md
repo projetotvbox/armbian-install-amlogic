@@ -314,7 +314,7 @@ O script verifica e instala automaticamente as seguintes dependências:
 ### Arquitetura do Projeto
 
 ```
-armbian-install-amlogic-project/
+armbian-install-amlogic/
 ├── armbian-install-amlogic.sh      # Script principal do instalador
 └── armbian-install-amlogic/
     ├── assets/                     # Variáveis do U-Boot (binários .img)
@@ -1324,7 +1324,7 @@ Durante o desenvolvimento, os seguintes projetos foram estudados como referênci
 
 Este projeto agradece a todos que contribuíram com código, documentação, testes e feedback:
 
-> Veja a lista completa de contribuidores em: [Contributors](https://github.com/projetotvbox/armbian-install-amlogic-project/graphs/contributors)
+> Veja a lista completa de contribuidores em: [Contributors](https://github.com/projetotvbox/armbian-install-amlogic/graphs/contributors)
 
 ### Como Contribuir
 

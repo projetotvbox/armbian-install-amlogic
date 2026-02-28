@@ -43,7 +43,7 @@ Follow the standard contribution workflow described below.
 
 Found a problem? Help us fix it!
 
-1. Go to [Issues](https://github.com/projetotvbox/armbian-install-amlogic-project/issues) tab
+1. Go to [Issues](https://github.com/projetotvbox/armbian-install-amlogic/issues) tab
 2. Check if the problem has already been reported
 3. Open a new issue including:
    - Device model (TV Box)
@@ -76,8 +76,8 @@ Clear documentation is essential! Contributions include:
 
 2. **Clone your fork**
    ```bash
-   git clone https://github.com/your-username/armbian-install-amlogic-project.git
-   cd armbian-install-amlogic-project
+   git clone https://github.com/your-username/armbian-install-amlogic.git
+   cd armbian-install-amlogic
    ```
 
 3. **Create a branch for your feature**
@@ -172,8 +172,8 @@ Before submitting, verify:
 If you have questions about contributing:
 
 1. Read the complete documentation in [README.en.md](README.en.md)
-2. Check existing issues on [GitHub Issues](https://github.com/projetotvbox/armbian-install-amlogic-project/issues)
-3. Start a discussion in [Discussions](https://github.com/projetotvbox/armbian-install-amlogic-project/discussions) (if enabled)
+2. Check existing issues on [GitHub Issues](https://github.com/projetotvbox/armbian-install-amlogic/issues)
+3. Start a discussion in [Discussions](https://github.com/projetotvbox/armbian-install-amlogic/discussions) (if enabled)
 
 ---
 
