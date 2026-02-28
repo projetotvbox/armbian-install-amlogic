@@ -29,11 +29,29 @@ Este código foi desenvolvido especificamente para automatizar a instalação do
 
 ## Visão Geral
 
-Este instalador permite transferir um sistema **Armbian** rodando em pendrive/cartão SD para a memória eMMC interna de TV Boxes AMLogic (S905X, S905X2, S905X3, etc.). O processo é totalmente interativo via TUI (dialog) e inclui suporte para dispositivos que requerem injeção de variáveis do U-Boot.
+### 🎯 Contexto e Motivação
 
-### Estrutura Esperada do Dispositivo de Boot
+O **Armbian padrão** utiliza uma **partição única em ext4**, mas muitos dispositivos AMLogic (especialmente TV Boxes dos SoCs S905X/X2/X3/X4) requerem um **particionamento dual** para funcionar corretamente:
 
-O instalador assume que o sistema atual está rodando de um dispositivo removível com a seguinte estrutura:
+```
+Partição 1: BOOT (FAT32) → Kernel, DTB, scripts de boot
+Partição 2: ROOTFS (ext4) → Sistema de arquivos raiz
+```
+
+**O Problema:**  
+Quando o sistema Armbian é convertido para essa estrutura de 2 partições (necessária para esses dispositivos), o **instalador oficial do Armbian** (`armbian-install`) **para de funcionar**, pois foi projetado exclusivamente para partição única ext4.
+
+**A Solução:**  
+Este instalador **restaura a automação** de transferência do sistema para a eMMC interna, adaptado especificamente para a estrutura dual de partições exigida por TV Boxes AMLogic. Além disso, ele oferece:
+
+- ✅ **Instalação automatizada** de Armbian dual-partition para eMMC
+- ✅ **Injeção de variáveis U-Boot** (frequentemente necessárias em TV Boxes com bootloader locked)
+- ✅ **Interface interativa** (TUI) para seleção de dispositivos e perfis
+- ✅ **Suporte a perfis específicos** por dispositivo (offsets customizados)
+
+### 📋 Estrutura Esperada do Dispositivo de Boot
+
+O instalador assume que o sistema atual está rodando de um pendrive/cartão SD com a seguinte estrutura:
 
 ```
 Partição 1: BOOT (FAT32, até 512MB)
@@ -141,7 +159,9 @@ Você deve ver arquivos como:
 
 ## Instalação no Sistema
 
-Para usar o instalador de forma permanente no sistema, siga os passos abaixo:
+> **📍 Contexto Importante:** Os comandos abaixo devem ser executados **no sistema Armbian rodando do pendrive/cartão SD**. O instalador precisa estar disponível no sistema removível antes de usá-lo para transferir o Armbian para a eMMC interna do dispositivo.
+
+Para instalar o script de forma permanente no sistema Armbian do pendrive/SD, siga os passos abaixo:
 
 ### 1. Descompactar Assets
 
@@ -151,16 +171,18 @@ Se ainda não descompactou os assets, consulte a seção **[Preparação Inicial
 cd armbian-install-amlogic/assets/ && gunzip -k *.img.gz && cd ../..
 ```
 
-### 2. Copiar Script Principal
+### 2. Copiar Script Principal para o Sistema Armbian
 
 ```bash
+# Copia o script para /usr/bin do sistema Armbian (pendrive/SD)
 sudo cp armbian-install-amlogic.sh /usr/bin/armbian-install-amlogic
 sudo chmod +x /usr/bin/armbian-install-amlogic
 ```
 
-### 3. Copiar Configurações e Assets
+### 3. Copiar Configurações e Assets para o Sistema Armbian
 
 ```bash
+# Copia perfis e assets para /etc do sistema Armbian (pendrive/SD)
 sudo cp -r armbian-install-amlogic /etc/
 ```
 
@@ -178,7 +200,7 @@ sudo find /etc/armbian-install-amlogic -type f -exec chmod 644 {} \;
 
 ### 5. Executar o Instalador
 
-Após a instalação, execute de qualquer lugar:
+Após a instalação no sistema Armbian do pendrive/SD, execute o instalador para transferir o sistema para a eMMC:
 
 ```bash
 sudo armbian-install-amlogic
@@ -419,75 +441,6 @@ Escreve variáveis diretamente no offset especificado (geralmente setor 0).
 
 ---
 
-## Troubleshooting
-
-### Tela preta após instalação
-
-**Causa:** Variáveis do U-Boot incorretas, DTB errado, ou offset de partição inadequado.
-
-**Solução:**
-1. Verifique se selecionou o perfil correto do dispositivo
-2. Confirme o DTB correto para seu SoC:
-   - S905X: `meson-gxl-s905x-*.dtb`
-   - S905X2: `meson-g12a-s905x2-*.dtb`
-   - S905X3: `meson-sm1-s905x3-*.dtb`
-3. **Dispositivo novo sem perfil?** Siga a seção **Extração de Variáveis U-Boot** para criar um perfil customizado
-
-### Box não boota da eMMC (volta pro pendrive)
-
-**Causa:** Variáveis do U-Boot não foram injetadas corretamente ou arquivo `.img` está corrompido.
-
-**Solução:**
-1. Verifique se o arquivo `ENV_FILE` existe no caminho especificado no profile
-2. Valide o conteúdo do arquivo extraído:
-   ```bash
-   strings /etc/armbian-install-amlogic/assets/uboot_envs_device.img | grep -i "bootcmd"
-   ```
-3. Se vazio ou sem dados relevantes, refaça a extração via Método 1 ou 2
-
-### Falha ao montar partições
-
-**Causa:** Partições não foram criadas corretamente ou race condition (Kernel ainda não criou `/dev/mmcblkXp1`).
-
-**Solução:** 
-
-1. Verifique o log em `/tmp/armbian-install-amlogic.log`
-2. O instalador já possui proteções contra race conditions:
-   ```bash
-   partprobe /dev/mmcblkX
-   udevadm settle
-   sleep 2
-   ```
-3. Em eMMCs muito lentas, pode ser necessário aumentar o `sleep`
-
-### Variáveis U-Boot não persistem após `saveenv`
-
-**Causa:** O bootloader não tem permissão ou espaço para gravar na eMMC, ou a região de environment está corrompida.
-
-**Sintomas:**
-- Executa `saveenv` sem erros
-- Após `reset` e `printenv`, as variáveis sumiram
-
-**Solução:**
-1. **Tente desbloquear escrita:**
-   ```text
-   mmc dev 1
-   mmc info
-   ```
-   Verifique se o dispositivo não está protegido contra escrita
-
-2. **Use o Método 2 (Ampart):** Este dispositivo provavelmente não regenera variáveis de forma confiável. Restaure o backup e siga o método Ampart para preservar a estrutura original.
-
-### Sistema não inicializa da eMMC
-
-**Causa:** U-Boot ainda está configurado para boot de SD/USB.
-
-**Solução:** 
-- Execute a instalação novamente
-- Em dispositivos locked, certifique-se de usar um perfil (não genérico)
-
----
-
 ## Extração de Variáveis U-Boot (Hardcore Mode)
 
 Esta seção é destinada a **desenvolvedores e entusiastas avançados** que desejam adicionar suporte para novos dispositivos. O processo exige conhecimentos de hardware e interface serial.
@@ -504,13 +457,20 @@ Diferente de PCs padrão, **cada modelo de TV Box** pode ter uma arquitetura de 
 
 ### ⚠️ Pré-Requisitos Obrigatórios
 
-1. **Adaptador Serial TTL (UART)** de boa qualidade (3.3V, **NUNCA 5V!**)
-2. Habilidades com soldagem para acessar TX/RX/GND na placa
-3. Software de terminal serial (PuTTY, Minicom, picocom)
-4. **Paciência e metodologia**
+1. **Sistema Linux ARM funcional** rodando de pendrive/SD no dispositivo AMLogic alvo
+   - Pode ser Armbian, Debian, Ubuntu ARM, etc.
+   - Necessário para acessar a eMMC interna e executar comandos de análise/extração
+   - O sistema precisa bootar corretamente para você ter acesso shell
+   
+2. **Adaptador Serial TTL (UART)** de boa qualidade (3.3V, **NUNCA 5V!**)
+3. Habilidades com soldagem para acessar TX/RX/GND na placa
+4. Software de terminal serial (PuTTY, Minicom, picocom)
+5. **Paciência e metodologia**
+
+> **🔴 Atenção:** A interface serial UART é **obrigatória para AMBOS os métodos de extração** apresentados nesta seção. Não há como extrair e configurar variáveis U-Boot adequadamente sem acesso serial ao bootloader.
 
 **Configuração Serial Típica:**
-- Baud Rate: **115200** (padrão Amlogic) ou 1500000 (alguns modelos)
+- Baud Rate: **115200** (padrão Amlogic) ou **1500000** (alguns modelos)
 - Data Bits: 8
 - Stop Bits: 1  
 - Parity: None
@@ -581,6 +541,8 @@ saveenv
 reset
 ```
 
+> **💡 Dica Importante:** Essas variáveis configuradas acima (`start_autoscript`, `start_emmc_autoscript`, etc.) são **altamente recomendadas para ambos os métodos** (Método 1 e Método 2). Elas garantem que o bootloader procure scripts de boot nas diferentes mídias (eMMC, SD/USB) na ordem correta, permitindo que o Armbian inicie adequadamente.
+
 #### Passo 4: Teste de Persistência
 
 Após o reboot, **intercepte novamente** o U-Boot e verifique:
@@ -606,39 +568,97 @@ Como formatamos a eMMC inteira com zeros (`0x00`), **qualquer dado diferente de 
 sudo hexdump -C -n 144703488 /dev/mmcblkX | grep -C 5 "bootcmd="
 ```
 
-**Exemplo de saída:**
+**Exemplo de saída (HTV H8):**
 
 ```
-02000000  00 00 00 00 62 6f 6f 74  63 6d 64 3d 72 75 6e 20  |....bootcmd=run |
-02000010  73 74 61 72 74 5f 61 75  74 6f 73 63 72 69 70 74  |start_autoscript|
+07400000  00 00 00 00 62 6f 6f 74  63 6d 64 3d 72 75 6e 20  |....bootcmd=run |
+07400010  73 74 61 72 74 5f 61 75  74 6f 73 63 72 69 70 74  |start_autoscript|
 ```
 
-Note a primeira coluna: `02000000` (hexadecimal) = **32 MB** em decimal.
+Note a primeira coluna: `07400000` (hexadecimal) = **116 MB** em decimal.
 
 #### Passo 6: Cálculo do Corte Preciso
 
-**Não copie do início até o fim da eMMC!** Calcule exatamente o necessário:
+**⚠️ IMPORTANTE:** Não copie desde o byte 0! Extraia **apenas a região das variáveis U-Boot**, usando `skip` para pular até o offset identificado.
 
-1. **Offset onde começam as variáveis:** 32 MB (do exemplo acima)
-2. **Tamanho típico do Environment:** 4-8 MB
-3. **Folga de segurança:** 4 MB adicional
-4. **Total a extrair:** 32 + 8 + 4 = **44 MB**
+**Cálculo baseado no exemplo (HTV H8):**
+
+1. **Offset onde começam as variáveis:** 116 MB (0x07400000 do hexdump)
+2. **Tamanho a extrair:** 8 MB (típico seguro para variáveis U-Boot)
 
 ```bash
-# Extrai apenas a região necessária (ajuste o count conforme seu cálculo)
-sudo dd if=/dev/mmcblkX of=uboot_envs_htv_h8.img bs=1M count=44 status=progress
+# Extrai APENAS a região das variáveis (116MB até 116MB+8MB)
+sudo dd if=/dev/mmcblkX of=uboot_envs_htv_h8.img bs=1M skip=116 count=8 status=progress
 ```
 
+**Explicação dos parâmetros:**
+- `skip=116`: Pula os primeiros 116 MB (offset onde as variáveis começam)
+- `count=8`: Extrai apenas 8 MB a partir desse ponto
+- **Resultado:** Arquivo de 8 MB contendo exatamente as variáveis U-Boot
+
 **Anote para o profile:**
-- `ENV_OFFSET` = offset em setores onde as variáveis começam (calculado do hexdump)
-- `LINUX_START_SECTOR` = (tamanho extraído + margem de segurança) × 2048
-  - Exemplo: Se extraiu 44 MB, use margem até 128 MB = 262144 setores
+
+**1. Calcular ENV_OFFSET (em setores):**
+
+```bash
+# Fórmula: MB × 2048 = setores
+# Exemplo HTV H8: 116 MB das variáveis
+echo $((116 * 2048))  # Resultado: 237568 setores
+```
+
+- `ENV_OFFSET` = **237568** setores
+  - **Por quê?** O instalador usa `dd` com `seek=$ENV_OFFSET` para injetar o arquivo `.img` na posição correta da eMMC de destino
+  - **Conversão:** 116 MB × 2048 = 237568 setores (1 setor = 512 bytes)
+
+**2. Calcular LINUX_START_SECTOR:**
+
+**📊 Regra Condicional:**
+
+```bash
+# Fórmula base: offset_mb + tamanho_header_mb + 4 (margem)
+# Se resultado < 128 MB → usar 128 MB (mínimo seguro)
+# Se resultado ≥ 128 MB → usar o cálculo exato
+
+# Exemplo HTV H8:
+# offset_mb=116, tamanho_header=8, margem=4
+# Cálculo: 116 + 8 + 4 = 128 MB
+# Como 128 >= 128 → usar 128 MB
+
+echo $((128 * 2048))  # Resultado: 262144 setores
+```
+
+**Exemplo condicional (caso o cálculo dê < 128 MB):**
+
+```bash
+# Supondo offset_mb=50, tamanho_header=8, margem=4
+# Cálculo: 50 + 8 + 4 = 62 MB
+# Como 62 < 128 → usar 128 MB (padrão mínimo)
+
+echo $((128 * 2048))  # Resultado: 262144 setores
+```
+
+**Exemplo condicional (caso o cálculo dê > 128 MB):**
+
+```bash
+# Supondo offset_mb=120, tamanho_header=10, margem=4
+# Cálculo: 120 + 10 + 4 = 134 MB
+# Como 134 > 128 → usar 134 MB (cálculo exato)
+
+echo $((134 * 2048))  # Resultado: 274432 setores
+```
+
+- `LINUX_START_SECTOR` = **262144** setores (128 MB) → caso HTV H8
+  - **Por quê 128 MB mínimo?** Garante espaço suficiente para estruturas de bootloader e variáveis U-Boot
+  - **Margem de 4 MB:** Segurança adicional contra fragmentação/alinhamento
+  - **Lógica:** `max(128 MB, offset_mb + tamanho_header + 4)`
 
 ---
 
 ### Método 2: "Análise Ampart" (Exemplo: BTV E10, ATV A5)
 
 Este método é necessário quando o dispositivo **não regenera** variáveis de ambiente de forma confiável após wipe total.
+
+> **⚠️ Requisito:** Assim como o Método 1, este método **também requer interface serial UART** para interceptar o U-Boot e aplicar as variáveis recomendadas do Passo 3. A diferença está na estratégia de extração do arquivo.
 
 #### Instalação do Ampart
 
@@ -710,8 +730,45 @@ sudo dd if=/dev/mmcblkX of=uboot_envs_btv_e10.img bs=1M count=132 status=progres
 ```
 
 **Anote para o profile:**
-- `ENV_OFFSET=0`
-- `LINUX_START_SECTOR` = (132 MB + 4 MB margem) × 2048 = **278528** setores
+
+**1. Calcular ENV_OFFSET:**
+
+- `ENV_OFFSET` = **0** (zero)
+  - **Por quê?** No Método 2, extraímos **desde o byte 0** (incluindo bootloader, reserved, cache, env)
+  - Durante a instalação, o `dd` injeta o arquivo inteiro desde o início da eMMC
+  - As variáveis U-Boot já estão na posição correta dentro do arquivo extraído
+
+**2. Calcular LINUX_START_SECTOR:**
+
+**📊 Regra Condicional:**
+
+```bash
+# Fórmula base: inicio_data_mb + 4 (margem)
+# Se resultado < 128 MB → usar 128 MB (mínimo seguro)
+# Se resultado ≥ 128 MB → usar o cálculo exato
+
+# Exemplo BTV E10:
+# inicio_data=132 MB (do relatório ampart), margem=4
+# Cálculo: 132 + 4 = 136 MB
+# Como 136 > 128 → usar 136 MB (cálculo exato)
+
+echo $((136 * 2048))  # Resultado: 278528 setores
+```
+
+**Exemplo condicional (caso o cálculo dê < 128 MB):**
+
+```bash
+# Supondo inicio_data=100 MB, margem=4
+# Cálculo: 100 + 4 = 104 MB
+# Como 104 < 128 → usar 128 MB (padrão mínimo)
+
+echo $((128 * 2048))  # Resultado: 262144 setores
+```
+
+- `LINUX_START_SECTOR` = **278528** setores (136 MB) → caso BTV E10
+  - **Por quê 128 MB mínimo?** Garante espaço suficiente para estruturas do Android/Amlogic preservadas
+  - **Lógica:** `max(128 MB, inicio_data_mb + 4)`
+  - **Conversão:** 136 MB × 2048 = 278528 setores
 
 #### Passo 4: Validação
 
@@ -724,6 +781,8 @@ strings uboot_envs_btv_e10.img | grep -i "bootcmd"
 
 Se encontrar strings como `bootcmd=`, `start_autoscript`, etc., a extração foi bem-sucedida!
 
+> **💡 Recomendação Importante:** Antes de finalizar a extração, é **altamente recomendado** acessar o U-Boot via serial UART e configurar as variáveis do **Passo 3: Configuração das Variáveis** (seção do Método 1). Após aplicar essas variáveis (`setenv start_autoscript`, `saveenv`, etc.), faça a extração novamente com `dd` para garantir que o arquivo `.img` contenha as configurações otimizadas de boot. Isso garante melhor compatibilidade e inicialização em diferentes mídias (SD/USB/eMMC).
+
 ---
 
 ### 📊 Comparação dos Métodos
@@ -733,23 +792,135 @@ Se encontrar strings como `bootcmd=`, `start_autoscript`, etc., a extração foi
 | Complexidade | Média | Alta |
 | Arquivo Resultante | Limpo (só zeros + env) | Sujo (restos do Android) |
 | Tamanho Típico | 32-64 MB | 132 MB |
-| Requer Serial | ✅ Obrigatório | ❌ Opcional |
+| Requer Serial UART | ✅ Obrigatório | ✅ Obrigatório |
 | Exemplo | HTV H8 | BTV E10, ATV A5 |
+
+> **⚠️ Importante:** Ambos os métodos exigem interface serial UART para interceptar o U-Boot e configurar as variáveis de boot. A diferença está na estratégia de extração do arquivo de variáveis.
 
 ---
 
 ### 🔧 Conversão de Offsets (Referência Rápida)
 
+Esta seção é **crítica** para configurar corretamente os valores `ENV_OFFSET` e `LINUX_START_SECTOR` nos perfis de dispositivos.
+
+#### Fundamentos
+
+- **1 setor = 512 bytes**
+- **1 MB = 1024 × 1024 bytes = 1048576 bytes**
+- **1 MB = 2048 setores** (fórmula simplificada: MB × 2048)
+
+#### Conversões Essenciais
+
+**1. Hexadecimal (hexdump) → Decimal (bytes):**
+
 ```bash
-# Hexadecimal para Decimal
-echo $((0x02000000))  # Resultado: 33554432 bytes
-
-# Bytes para Megabytes
-echo $((33554432 / 1024 / 1024))  # Resultado: 32 MB
-
-# Megabytes para Setores (512 bytes)
-echo $((32 * 1024 * 1024 / 512))  # Resultado: 65536 setores
+# Exemplo: 0x07400000 do hexdump
+echo $((0x07400000))  # Resultado: 121634816 bytes
 ```
+
+**2. Bytes → Megabytes:**
+
+```bash
+# Dividir por 1024 duas vezes (ou 1048576)
+echo $((121634816 / 1024 / 1024))  # Resultado: 116 MB
+```
+
+**3. Megabytes → Setores (MAIS IMPORTANTE!):**
+
+```bash
+# Fórmula simplificada: MB × 2048
+echo $((116 * 2048))  # Resultado: 237568 setores
+
+# Fórmula completa (MB × 1024 × 1024 / 512):
+echo $((116 * 1024 * 1024 / 512))  # Resultado: 237568 setores
+```
+
+**4. Setores → Megabytes (verificação reversa):**
+
+```bash
+# Dividir por 2048
+echo $((237568 / 2048))  # Resultado: 116 MB
+```
+
+#### Exemplos Práticos
+
+**Exemplo 1: HTV H8 (Método 1)**
+
+```bash
+# Hexdump mostra: 07400000
+# Passo 1: Hex → Decimal
+echo $((0x07400000))  # = 121634816 bytes
+
+# Passo 2: Bytes → MB
+echo $((121634816 / 1024 / 1024))  # = 116 MB
+
+# Passo 3: MB → Setores (ENV_OFFSET)
+echo $((116 * 2048))  # = 237568 setores ✅
+
+# Passo 4: LINUX_START_SECTOR (116 + 8 extraídos + 4 margem = 128 MB)
+echo $((128 * 2048))  # = 262144 setores ✅
+```
+
+**Resultado:**
+- `ENV_OFFSET=237568`
+- `LINUX_START_SECTOR=262144`
+
+**Exemplo 2: BTV E10 (Método 2 - Ampart)**
+
+```bash
+# Relatório Ampart mostra partição 'data' em 132 MB
+# ENV_OFFSET = 0 (extraímos desde o início)
+
+# LINUX_START_SECTOR: data (132 MB) + margem (4 MB) = 136 MB
+echo $((136 * 2048))  # = 278528 setores ✅
+```
+
+**Resultado:**
+- `ENV_OFFSET=0`
+- `LINUX_START_SECTOR=278528`
+
+#### Atalho para Terminal
+
+Salve este alias no seu `~/.bashrc` para conversão rápida:
+
+```bash
+# Adicione ao ~/.bashrc
+alias mb2sec='echo "Conversão MB → Setores:"; read -p "Digite MB: " mb; echo "$((mb * 2048)) setores"'
+alias hex2mb='echo "Conversão Hex → MB:"; read -p "Digite hex (ex: 0x07400000): " hex; echo "$((hex / 1024 / 1024)) MB"'
+
+# Recarregue o bashrc
+source ~/.bashrc
+
+# Uso:
+mb2sec  # Digite 116 → Resultado: 237568 setores
+hex2mb  # Digite 0x07400000 → Resultado: 116 MB
+```
+
+#### 🎯 Regra Crítica: LINUX_START_SECTOR Mínimo
+
+**Esta é a regra mais importante para garantir que o dispositivo boote corretamente:**
+
+```bash
+# Regra: LINUX_START_SECTOR = max(128 MB, cálculo_base)
+# Onde cálculo_base varia por método:
+
+# Método 1: offset_mb + tamanho_header_mb + 4
+# Método 2: inicio_data_mb + 4
+
+# Exemplos:
+# Se cálculo_base = 62 MB  → usar 128 MB (262144 setores)
+# Se cálculo_base = 128 MB → usar 128 MB (262144 setores)
+# Se cálculo_base = 136 MB → usar 136 MB (278528 setores)
+```
+
+**Por que 128 MB é o mínimo absoluto?**
+
+- Garante espaço suficiente para bootloader, partições reservadas, e variáveis U-Boot
+- Evita conflitos com estruturas residuais do sistema Android original
+- Proporciona margem de segurança contra fragmentação e desalinhamento de setores
+- Compatibilidade com a maioria dos dispositivos AMLogic S905X/X2/X3/X4
+
+**⚠️ NUNCA use valores menores que 262144 setores (128 MB) para LINUX_START_SECTOR!**
 
 ---
 
@@ -778,41 +949,128 @@ Arquivos `.img` excedem o limite de 100MB do GitHub. A compressão gzip reduz dr
 
 Crie um novo arquivo de configuração em `armbian-install-amlogic/profiles/`:
 
-**Exemplo: `armbian-install-amlogic/profiles/mydevice.conf`**
+#### Exemplo Método 1 (Wipe & Regen - como HTV H8)
+
+**Cenário:** Hexdump mostrou variáveis em `0x07400000`, extraímos 8 MB.
+
+**Cálculos:**
+
+```bash
+# ENV_OFFSET: converter offset hex para setores
+echo $((0x07400000 / 1024 / 1024))  # = 116 MB
+echo $((116 * 2048))                 # = 237568 setores ✅
+
+# LINUX_START_SECTOR: aplicar regra condicional
+# Base: offset + tamanho extraído + margem = 116 + 8 + 4 = 128 MB
+# Regra: se < 128 MB → usar 128 MB, senão usar cálculo
+# Como 128 >= 128 → usar 128 MB
+echo $((128 * 2048))                 # = 262144 setores ✅
+```
+
+**Arquivo:** `armbian-install-amlogic/profiles/mydevice_method1.conf`
 
 ```properties
-BOARD_NAME="My Device (S905X4)"
+BOARD_NAME="My Device Method1 (S905X4)"
 AUTHOR="Your Name"
 ENV_OFFSET=237568
 ENV_FILE="/etc/armbian-install-amlogic/assets/uboot_envs_mydevice.img"
 LINUX_START_SECTOR=262144
 ```
 
-**Ajuste os valores conforme seu método de extração:**
-- `ENV_OFFSET`: Setor onde as variáveis foram gravadas (extraído do hexdump ou relatório ampart)
-- `LINUX_START_SECTOR`: Offset seguro após as variáveis U-Boot
-  - Método 1: Use margem conservadora (ex: 262144 = 128 MB)
-  - Método 2 (Ampart): Use início da partição `data` + margem (ex: 278528 = 136 MB)
+#### Exemplo Método 2 (Ampart - como BTV E10)
 
-### 3. Instalar Configuração
+**Cenário:** Ampart mostrou partição `data` começando em 132 MB, extraímos desde byte 0.
+
+**Cálculos:**
 
 ```bash
-sudo mkdir -p /etc/armbian-install-amlogic/{assets,profiles}
-sudo cp armbian-install-amlogic/assets/* /etc/armbian-install-amlogic/assets/
-sudo cp armbian-install-amlogic/profiles/* /etc/armbian-install-amlogic/profiles/
+# ENV_OFFSET: Método 2 sempre usa 0 (extração desde início)
+# ENV_OFFSET = 0 ✅
+
+# LINUX_START_SECTOR: aplicar regra condicional
+# Base: início data + margem = 132 + 4 = 136 MB
+# Regra: se < 128 MB → usar 128 MB, senão usar cálculo
+# Como 136 > 128 → usar 136 MB (cálculo exato)
+echo $((136 * 2048))  # = 278528 setores ✅
 ```
 
-### 4. Teste
+**Arquivo:** `armbian-install-amlogic/profiles/mydevice_method2.conf`
+
+```properties
+BOARD_NAME="My Device Method2 (S905X3)"
+AUTHOR="Your Name"
+ENV_OFFSET=0
+ENV_FILE="/etc/armbian-install-amlogic/assets/uboot_envs_mydevice.img"
+LINUX_START_SECTOR=278528
+```
+
+#### Validação dos Valores
+
+**Antes de salvar o profile, valide:**
+
+```bash
+# 1. ENV_OFFSET deve ser um número inteiro de setores
+# 2. LINUX_START_SECTOR deve ser maior que ENV_OFFSET (se ENV_OFFSET != 0)
+# 3. LINUX_START_SECTOR mínimo: 262144 (128 MB) - nunca menos que isso!
+# 4. LINUX_START_SECTOR típico: 262144 (128 MB) ou 278528 (136 MB)
+
+# Verificar se conversão está correta (exemplo 116 MB):
+echo $((116 * 2048))      # Deve retornar 237568
+echo $((237568 / 2048))   # Deve retornar 116 (verificação reversa)
+
+# Validar regra condicional:
+# Se seu cálculo deu < 128 MB, SEMPRE usar 128 MB (262144 setores)
+```
+
+**⚠️ Valores críticos - erros aqui resultam em:**
+- Partições sobrescrevendo variáveis U-Boot → Device não boota
+- Offsets incorretos → Bootloader não encontra variáveis → Tela preta
+- **LINUX_START_SECTOR < 128 MB → Espaço insuficiente → Falha garantida**
+
+### 3. Instalar no Sistema Armbian
+
+Copie o script principal e as configurações para o sistema:
+
+```bash
+# Copia o script para /usr/bin do sistema Armbian (pendrive/SD)
+sudo cp armbian-install-amlogic.sh /usr/bin/armbian-install-amlogic
+sudo chmod +x /usr/bin/armbian-install-amlogic
+
+# Copia perfis e assets para /etc do sistema Armbian (pendrive/SD)
+sudo cp -r armbian-install-amlogic /etc/
+```
+
+### 4. Definir Permissões Corretas
+
+```bash
+# Permissões para diretórios (755) e arquivos (644)
+sudo chmod -R 755 /etc/armbian-install-amlogic
+sudo find /etc/armbian-install-amlogic -type f -exec chmod 644 {} \;
+```
+
+**Explicação das permissões:**
+- `755` para diretórios: Permite navegação e listagem
+- `644` para arquivos: Leitura para todos, escrita apenas para root
+
+### 5. Teste
 
 Execute o instalador e verifique se o novo perfil aparece na lista de seleção:
 
 ```bash
-sudo ./armbian-install-amlogic.sh
+sudo armbian-install-amlogic
 ```
 
 Se tudo estiver correto, o nome do dispositivo (`BOARD_NAME`) aparecerá no menu de seleção.
 
-### 5. Contribua!
+> **⚡ Teste Real Obrigatório:** Não basta o perfil aparecer no menu! Execute a **instalação completa** para a eMMC e verifique se o dispositivo realmente boota corretamente. Teste:
+> - Boot bem-sucedido da eMMC
+> - Detecção correta de hardware
+> - Conectividade (Ethernet/Wi-Fi)
+> - Funcionalidade geral do sistema
+> 
+> Só considere o perfil funcional após boot real bem-sucedido!
+
+### 6. Contribua!
 
 Se o perfil funcionar perfeitamente, considere contribuir com o projeto:
 - Abra uma Pull Request com o profile e asset **compactado (`.img.gz`)**
@@ -892,6 +1150,75 @@ hexdump -C uboot_envs_device.img | head -32
 ```
 
 Se o arquivo estiver vazio ou cheio de zeros, a extração falhou.
+
+---
+
+## Troubleshooting
+
+### Tela preta após instalação
+
+**Causa:** Variáveis do U-Boot incorretas, DTB errado, ou offset de partição inadequado.
+
+**Solução:**
+1. Verifique se selecionou o perfil correto do dispositivo
+2. Confirme o DTB correto para seu SoC:
+   - S905X: `meson-gxl-s905x-*.dtb`
+   - S905X2: `meson-g12a-s905x2-*.dtb`
+   - S905X3: `meson-sm1-s905x3-*.dtb`
+3. **Dispositivo novo sem perfil?** Siga a seção **Extração de Variáveis U-Boot** para criar um perfil customizado
+
+### Box não boota da eMMC (volta pro pendrive)
+
+**Causa:** Variáveis do U-Boot não foram injetadas corretamente ou arquivo `.img` está corrompido.
+
+**Solução:**
+1. Verifique se o arquivo `ENV_FILE` existe no caminho especificado no profile
+2. Valide o conteúdo do arquivo extraído:
+   ```bash
+   strings /etc/armbian-install-amlogic/assets/uboot_envs_device.img | grep -i "bootcmd"
+   ```
+3. Se vazio ou sem dados relevantes, refaça a extração via Método 1 ou 2
+
+### Falha ao montar partições
+
+**Causa:** Partições não foram criadas corretamente ou race condition (Kernel ainda não criou `/dev/mmcblkXp1`).
+
+**Solução:** 
+
+1. Verifique o log em `/tmp/armbian-install-amlogic.log`
+2. O instalador já possui proteções contra race conditions:
+   ```bash
+   partprobe /dev/mmcblkX
+   udevadm settle
+   sleep 2
+   ```
+3. Em eMMCs muito lentas, pode ser necessário aumentar o `sleep`
+
+### Variáveis U-Boot não persistem após `saveenv`
+
+**Causa:** O bootloader não tem permissão ou espaço para gravar na eMMC, ou a região de environment está corrompida.
+
+**Sintomas:**
+- Executa `saveenv` sem erros
+- Após `reset` e `printenv`, as variáveis sumiram
+
+**Solução:**
+1. **Tente desbloquear escrita:**
+   ```text
+   mmc dev 1
+   mmc info
+   ```
+   Verifique se o dispositivo não está protegido contra escrita
+
+2. **Use o Método 2 (Ampart):** Este dispositivo provavelmente não regenera variáveis de forma confiável. Restaure o backup e siga o método Ampart para preservar a estrutura original.
+
+### Sistema não inicializa da eMMC
+
+**Causa:** U-Boot ainda está configurado para boot de SD/USB.
+
+**Solução:** 
+- Execute a instalação novamente
+- Em dispositivos locked, certifique-se de usar um perfil (não genérico)
 
 ---
 
