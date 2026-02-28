@@ -75,121 +75,6 @@ Partição 2: ROOTFS (ext4, restante do espaço)
 
 ---
 
-## Dependências
-
-O script verifica e instala automaticamente as seguintes dependências:
-
-- `pv` - Visualizador de progresso para operações de disco
-- `dialog` - Interface TUI para menus interativos
-- `dosfstools` - Ferramentas para sistema de arquivos FAT32 (mkfs.vfat)
-- `rsync` - Sincronização eficiente de arquivos
-
----
-
-## Arquitetura do Projeto
-
-```
-armbian-install-amlogic-project/
-├── armbian-install-amlogic.sh      # Script principal do instalador
-└── armbian-install-amlogic/
-    ├── assets/                     # Variáveis do U-Boot (binários .img)
-    │   ├── uboot_envs_atv_a5.img.gz
-    │   ├── uboot_envs_btv_e10.img.gz
-    │   └── uboot_envs_htv_h8.img.gz
-    └── profiles/                   # Configurações por dispositivo
-        ├── atv_a5.conf
-        ├── btv_e10.conf
-        └── htv_h8.conf
-```
-
-### Assets (U-Boot Environment)
-
-Os arquivos `.img` em `assets/` contêm variáveis de ambiente do U-Boot pré-configuradas. Esses binários são injetados diretamente na eMMC em offsets específicos, instruindo o bootloader onde encontrar o kernel Linux.
-
-**Por que isso é necessário?**  
-Dispositivos com bootloader locked (HTV, BTV, ATV) não permitem modificação de variáveis do U-Boot via software. A injeção direta no offset correto garante que o bootloader carregue o sistema corretamente.
-
-### Profiles (Configuração por Dispositivo)
-
-Cada arquivo `.conf` contém:
-
-| Campo | Descrição |
-|-------|-----------|
-| `BOARD_NAME` | Nome legível do dispositivo (ex: "ATV A5 (S905X3)") |
-| `AUTHOR` | Autor do perfil |
-| `ENV_OFFSET` | Setor onde injetar as variáveis do U-Boot (geralmente 0) |
-| `ENV_FILE` | Caminho para o arquivo `.img` das variáveis |
-| `LINUX_START_SECTOR` | Setor inicial da primeira partição (customizado por dispositivo) |
-
----
-
-## Fluxo de Instalação
-
-```mermaid
-graph TD
-    A[Início] --> B[Verificação Root]
-    B --> C[Verificação Dependências]
-    C --> D[Detecção Discos eMMC]
-    D --> E[Seleção Disco Destino]
-    E --> F[Seleção Perfil Dispositivo]
-    F --> G{Perfil Generic?}
-    G -->|Sim| H[Usar Configuração Padrão]
-    G -->|Não| I[Carregar Perfil Específico]
-    H --> J[Confirmação Wipe]
-    I --> J
-    J --> K[Wipe Completo do Disco]
-    K --> L{Injeção U-Boot?}
-    L -->|Sim| M[Injetar Variáveis U-Boot]
-    L -->|Não| N[Criar Partições]
-    M --> N
-    N --> O[Formatar BOOT FAT32]
-    O --> P[Formatar ROOTFS ext4]
-    P --> Q[Montar Partições]
-    Q --> R[Copiar BOOT cp -rL]
-    R --> S[Copiar ROOTFS rsync]
-    S --> T[Atualizar UUIDs]
-    T --> U{DTB Existe?}
-    U -->|Não| V[Seleção Manual DTB]
-    U -->|Sim| W[Atualizar armbianEnv.txt]
-    V --> W
-    W --> X[Atualizar fstab]
-    X --> Y[Sync e Desmontagem]
-    Y --> Z[Conclusão]
-```
-
----
-
-## Layout de Partições
-
-### Configuração Padrão
-
-```
-eMMC Layout:
-┌─────────────────────┬──────────────────┬───────────────────────┐
-│  Reserved Area      │  BOOT (FAT32)   │   ROOTFS (ext4)      │
-│  (varia por perfil) │  (512MB)        │   (restante)         │
-│  Início → Offset    │  Offset+        │   Calculado          │
-└─────────────────────┴──────────────────┴───────────────────────┘
-```
-
-- **Reserved Area**: Região inicial reservada para variáveis U-Boot injetadas (tamanho varia por dispositivo)
-- **BOOT Partition**: 512MB FAT32, contém kernel, DTB, scripts de boot
-- **ROOTFS Partition**: ext4, ocupa todo espaço restante
-
-### Customização via Perfil
-
-Cada dispositivo define seu próprio `LINUX_START_SECTOR` (onde começa a partição BOOT):
-
-| Perfil | LINUX_START_SECTOR | Tamanho Reserved | Método Extração |
-|--------|-------------------|------------------|-----------------|
-| HTV H8 | 262144 | 128 MB | Método 1 (Regeneração) |
-| BTV E10 | 278528 | 136 MB | Método 2 (Ampart) |
-| ATV A5 | 278528 | 136 MB | Método 2 (Ampart) |
-
-O offset correto é determinado durante o processo de extração das variáveis U-Boot (veja [Extração de Variáveis U-Boot](#extração-de-variáveis-u-boot-hardcore-mode)).
-
----
-
 ## Preparação Inicial
 
 ### ⚠️ Descompactação dos Assets (OBRIGATÓRIO)
@@ -240,12 +125,12 @@ Você deve ver arquivos como:
 
 Para usar o instalador de forma permanente no sistema, siga os passos abaixo:
 
-### 1. Descompactar Assets (se ainda não fez)
+### 1. Descompactar Assets
+
+Se ainda não descompactou os assets, consulte a seção **[Preparação Inicial](#preparação-inicial)** para instruções detalhadas.
 
 ```bash
-cd armbian-install-amlogic/assets/
-gunzip -k *.img.gz
-cd ../..
+cd armbian-install-amlogic/assets/ && gunzip -k *.img.gz && cd ../..
 ```
 
 ### 2. Copiar Script Principal
@@ -321,7 +206,7 @@ Selecione o perfil correspondente ao seu dispositivo. O instalador:
 **Dispositivos suportados:**
 - ATV A5 (S905X3)
 - BTV E10 (S905X2)
-- HTV H8 (Rockchip/Allwinner)
+- HTV H8 (S905X4)
 
 #### 2. Instalação Genérica (Avançado)
 
@@ -339,6 +224,137 @@ Para dispositivos com bootloader desbloqueado ou não listados:
 ---
 
 ## Detalhes Técnicos
+
+### Dependências
+
+O script verifica e instala automaticamente as seguintes dependências:
+
+- `pv` - Visualizador de progresso para operações de disco
+- `dialog` - Interface TUI para menus interativos
+- `dosfstools` - Ferramentas para sistema de arquivos FAT32 (mkfs.vfat)
+- `rsync` - Sincronização eficiente de arquivos
+
+### Arquitetura do Projeto
+
+```
+armbian-install-amlogic-project/
+├── armbian-install-amlogic.sh      # Script principal do instalador
+└── armbian-install-amlogic/
+    ├── assets/                     # Variáveis do U-Boot (binários .img)
+    │   ├── uboot_envs_atv_a5.img.gz
+    │   ├── uboot_envs_btv_e10.img.gz
+    │   └── uboot_envs_htv_h8.img.gz
+    └── profiles/                   # Configurações por dispositivo
+        ├── atv_a5.conf
+        ├── btv_e10.conf
+        └── htv_h8.conf
+```
+
+#### Assets (U-Boot Environment)
+
+Os arquivos `.img` em `assets/` contêm variáveis de ambiente do U-Boot pré-configuradas. Esses binários são injetados diretamente na eMMC em offsets específicos, instruindo o bootloader onde encontrar o kernel Linux.
+
+**Por que isso é necessário?**  
+Dispositivos com bootloader locked (HTV, BTV, ATV) não permitem modificação de variáveis do U-Boot via software. A injeção direta no offset correto garante que o bootloader carregue o sistema corretamente.
+
+#### Profiles (Configuração por Dispositivo)
+
+Cada arquivo `.conf` contém:
+
+| Campo | Descrição |
+|-------|-----------||
+| `BOARD_NAME` | Nome legível do dispositivo (ex: "ATV A5 (S905X3)") |
+| `AUTHOR` | Autor do perfil |
+| `ENV_OFFSET` | Setor onde injetar as variáveis do U-Boot (geralmente 0) |
+| `ENV_FILE` | Caminho para o arquivo `.img` das variáveis |
+| `LINUX_START_SECTOR` | Setor inicial da primeira partição (customizado por dispositivo) |
+
+### Layout de Partições
+
+#### Configuração Padrão
+
+```
+eMMC Layout:
+┌─────────────────────┬──────────────────┬───────────────────────┐
+│  Reserved Area      │  BOOT (FAT32)   │   ROOTFS (ext4)      │
+│  (varia por perfil) │  (512MB)        │   (restante)         │
+│  Início → Offset    │  Offset+        │   Calculado          │
+└─────────────────────┴──────────────────┴───────────────────────┘
+```
+
+- **Reserved Area**: Região inicial reservada para variáveis U-Boot injetadas (tamanho varia por dispositivo)
+- **BOOT Partition**: 512MB FAT32, contém kernel, DTB, scripts de boot
+- **ROOTFS Partition**: ext4, ocupa todo espaço restante
+
+#### Customização via Perfil
+
+Cada dispositivo define seu próprio `LINUX_START_SECTOR` (onde começa a partição BOOT):
+
+| Perfil | LINUX_START_SECTOR | Tamanho Reserved | Método Extração |
+|--------|-------------------|------------------|-----------------||
+| HTV H8 | 262144 | 128 MB | Método 1 (Regeneração) |
+| BTV E10 | 278528 | 136 MB | Método 2 (Ampart) |
+| ATV A5 | 278528 | 136 MB | Método 2 (Ampart) |
+
+O offset correto é determinado durante o processo de extração das variáveis U-Boot (veja [Extração de Variáveis U-Boot](#extração-de-variáveis-u-boot-hardcore-mode)).
+
+#### Offset de Particionamento Seguro
+
+O instalador usa um **offset inicial customizado por perfil** para garantir que as partições Linux não sobrescrevam as variáveis U-Boot injetadas.
+
+**Exemplos de offsets utilizados:**
+
+| Dispositivo | Offset (setores) | Tamanho (MB) | Método / Motivo |
+|-------------|------------------|--------------|--------|
+| **HTV H8** | 262144 | 128 MB | Método 1 - Variáveis regeneradas, offset conservador |
+| **BTV E10** | 278528 | 136 MB | Método 2 - Estrutura Amlogic preservada via ampart |
+| **ATV A5** | 278528 | 136 MB | Método 2 - Estrutura Amlogic preservada via ampart |
+| **Generic** | 262144 | 128 MB | Sem perfil - Margem conservadora |
+
+**Por que o offset é necessário?**
+- Deixar espaço para as variáveis U-Boot injetadas
+- Evitar conflito com estruturas residuais do Android
+- Garantir alinhamento adequado para performance da eMMC
+- Acomodar diferentes layouts de dispositivos AMLogic
+
+**Regra de Ouro:** Cada perfil define seu `LINUX_START_SECTOR` baseado no método de extração usado (Método 1 ou 2). O instalador **nunca** começa partições Linux antes dessa posição segura.
+
+### Fluxo Interno Detalhado
+
+Este diagrama mostra o fluxo de execução interno do instalador, incluindo todas as etapas de verificação, particionamento, e injeção de variáveis:
+
+```mermaid
+flowchart TD
+    A[Início] --> B{Verificar<br/>Root}
+    B -->|Não| C[Erro: Execute como root]
+    B -->|Sim| D[Carregar Perfil]
+    D --> E{Perfil<br/>Válido?}
+    E -->|Não| F[Erro: Perfil não encontrado]
+    E -->|Sim| G[Detectar Boot Source]
+    G --> H{SD/USB<br/>ou eMMC?}
+    H -->|eMMC| I[Erro: Já instalado na eMMC]
+    H -->|SD/USB| J[Selecionar Dispositivo Alvo]
+    J --> K[Confirmar Instalação]
+    K --> L[Copiar Dados BOOT/ROOTFS]
+    L --> M[Particionar eMMC]
+    M --> N[Formatar Partições]
+    N --> O[Montar Partições]
+    O --> P[Copiar Sistema]
+    P --> Q[Atualizar UUIDs]
+    Q --> R{Arquivo<br/>ENV_FILE<br/>existe?}
+    R -->|Não| S[Aviso: Variáveis não injetadas]
+    R -->|Sim| T[Injetar Variáveis U-Boot]
+    T --> U[Sincronizar Dados]
+    U --> V[Desmontar Partições]
+    V --> W[Instalação Completa]
+    S --> W
+    W --> X[Fim]
+    C --> X
+    F --> X
+    I --> X
+```
+
+> **Nota para Desenvolvedores**: As variáveis U-Boot são injetadas no offset definido em `ENV_OFFSET` (geralmente setor 0 ou próximo) do dispositivo eMMC. Se o arquivo não existir, o sistema será copiado, mas o bootloader não saberá onde procurar o kernel.
 
 ### Operações de Disco
 
@@ -411,12 +427,6 @@ Escreve variáveis diretamente no offset especificado (geralmente setor 0).
    strings /etc/armbian-install-amlogic/assets/uboot_envs_device.img | grep -i "bootcmd"
    ```
 3. Se vazio ou sem dados relevantes, refaça a extração via Método 1 ou 2
-
-### Falha ao montar partições
-
-**Causa:** Partições não foram criadas corretamente.
-
-**Solução:** Verifique o log em `/tmp/armbian-install-amlogic.log`.
 
 ### Falha ao montar partições
 
@@ -848,27 +858,6 @@ dd if=file.img of=/dev/mmcblkX bs=1M oflag=direct conv=fsync
 ```
 
 O instalador usa `oflag=direct` no wipe para garantir que zeros sejam realmente escritos na eMMC, não apenas no cache.
-
-### Offset de Particionamento Seguro
-
-O instalador usa um **offset inicial customizado por perfil** para garantir que as partições Linux não sobrescrevam as variáveis U-Boot injetadas.
-
-**Exemplos de offsets utilizados:**
-
-| Dispositivo | Offset (setores) | Tamanho (MB) | Método / Motivo |
-|-------------|------------------|--------------|--------|
-| **HTV H8** | 262144 | 128 MB | Método 1 - Variáveis regeneradas, offset conservador |
-| **BTV E10** | 278528 | 136 MB | Método 2 - Estrutura Amlogic preservada via ampart |
-| **ATV A5** | 278528 | 136 MB | Método 2 - Estrutura Amlogic preservada via ampart |
-| **Generic** | 262144 | 128 MB | Sem perfil - Margem conservadora |
-
-**Por que o offset é necessário?**
-- Deixar espaço para as variáveis U-Boot injetadas
-- Evitar conflito com estruturas residuais do Android
-- Garantir alinhamento adequado para performance da eMMC
-- Acomodar diferentes layouts de dispositivos AMLogic
-
-**Regra de Ouro:** Cada perfil define seu `LINUX_START_SECTOR` baseado no método de extração usado (Método 1 ou 2). O instalador **nunca** começa partições Linux antes dessa posição segura.
 
 ### Validação de Arquivos `.img` Extraídos
 
