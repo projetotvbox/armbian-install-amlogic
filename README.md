@@ -75,6 +75,9 @@ Partição 1: BOOT (FAT32) → Kernel, DTB, scripts de boot
 Partição 2: ROOTFS (ext4) → Sistema de arquivos raiz
 ```
 
+> 💡 **Precisa converter sua imagem Armbian para o formato dual partition?**  
+> O [armbian-amlogic-image-repacker](https://github.com/projetotvbox/armbian-amlogic-image-repacker) (também do Projeto TVBox) automatiza exatamente essa etapa — ele reempacota a imagem padrão do Armbian para a estrutura `BOOT (FAT32) + ROOTFS (ext4)` esperada por estes dispositivos.
+
 **O Problema:**  
 Quando o sistema Armbian é convertido para essa estrutura de 2 partições (necessária para esses dispositivos), o **instalador oficial do Armbian** (`armbian-install`) **para de funcionar**, pois foi projetado exclusivamente para partição única ext4.
 
