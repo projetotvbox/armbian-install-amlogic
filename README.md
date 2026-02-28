@@ -294,15 +294,38 @@ armbian-install-amlogic-project/
 
 Os arquivos `.img` em `assets/` contêm variáveis de ambiente do U-Boot pré-configuradas. Esses binários são injetados diretamente na eMMC em offsets específicos, instruindo o bootloader onde encontrar o kernel Linux.
 
-**Por que isso é necessário?**  
-Dispositivos com bootloader locked (HTV, BTV, ATV) não permitem modificação de variáveis do U-Boot via software. A injeção direta no offset correto garante que o bootloader carregue o sistema corretamente.
+**Por que isso é necessário?**
+
+O bootloader de fábrica da **Amlogic** geralmente vem com variáveis U-Boot **restritivas**, permitindo boot apenas em sistemas específicos para os quais foram configurados originalmente.
+
+**O problema:**
+
+1. **Fabricantes de TV Box** alteram essas variáveis para serem **mais permissivas**, facilitando:
+   - Boot em múltiplos sistemas operacionais
+   - Processos de recuperação
+   - Maior flexibilidade de firmware
+
+2. **Durante o wipe/zeroing da eMMC**, essas variáveis permissivas customizadas pelos fabricantes são **apagadas**
+
+3. **Após a instalação**, o bootloader volta às configurações restritivas da Amlogic de fábrica
+
+4. **Resultado:** O sistema Armbian instalado **não consegue dar boot**, mesmo estando corretamente instalado
+
+**A solução (Assets):**
+
+Os arquivos `.img` nos assets **preservam e reinjetam** as variáveis permissivas do fabricante após a instalação, garantindo que:
+- O Armbian boote corretamente da eMMC
+- Scripts de boot (`s905_autoscript`, `emmc_autoscript`) sejam encontrados
+- Boot alternativo por SD/USB continue funcionando
+- O sistema tenha a mesma flexibilidade do Android/firmware original
 
 #### Profiles (Configuração por Dispositivo)
 
 Cada arquivo `.conf` contém:
 
 | Campo | Descrição |
-|-------|-----------|n| `BOARD_NAME` | Nome legível do dispositivo (ex: "ATV A5 (S905X3)") |
+|-------|-----------|
+| `BOARD_NAME` | Nome legível do dispositivo (ex: "ATV A5 (S905X3)") |
 | `AUTHOR` | Autor do perfil |
 | `ENV_OFFSET` | Setor onde injetar as variáveis do U-Boot (geralmente 0) |
 | `ENV_FILE` | Caminho para o arquivo `.img` das variáveis |
@@ -435,9 +458,11 @@ Escreve variáveis diretamente no offset especificado (geralmente setor 0).
 
 ### Atualização de Configurações
 
-1. **armbianEnv.txt**: Define `rootdev=UUID=xxxx` com novo UUID
+1. **armbianEnv.txt**: Atualiza `rootdev=UUID=xxxx` com novo UUID
+   - Se o arquivo já existir: apenas atualiza o UUID da root
+   - Se não existir: cria do zero e solicita seleção de DTB
 2. **fstab**: Atualiza entradas BOOT e ROOTFS com novos UUIDs
-3. **DTB Selection**: Permite seleção manual do Device Tree Blob correto
+3. **DTB Selection** (apenas se armbianEnv.txt não existir): Menu interativo para selecionar o Device Tree Blob correto para o hardware
 
 ---
 
