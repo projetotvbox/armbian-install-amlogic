@@ -44,6 +44,24 @@ Partição 2: ROOTFS (ext4, restante do espaço)
 
 **Este instalador foi desenvolvido especificamente para o Armbian**, otimizado para sua estrutura de boot e arquivos de configuração (`armbianEnv.txt`, DTBs, etc.).
 
+#### Dispositivos Suportados
+
+| Dispositivo | SoC | Perfil | Status | Observações |
+|-------------|-----|--------|--------|-------------|
+| **HTV H8** | AMLogic S905X4 | `htv_h8.conf` | ✅ Testado | Offset 128 MB, variáveis regeneradas |
+| **BTV E10** | AMLogic S905X3 | `btv_e10.conf` | ✅ Testado | Offset 136 MB, estrutura Amlogic preservada |
+| **ATV A5** | AMLogic S905X3 | `atv_a5.conf` | ✅ Testado | Offset 136 MB, estrutura Amlogic preservada |
+| **Genérico** | AMLogic S905X/X2/X3/X4 | Sem perfil | ⚠️ Experimental | Offset padrão 128 MB, **sem injeção de variáveis U-Boot** |
+
+**Sobre a instalação genérica:**
+- ⚠️ Funciona apenas para dispositivos com **bootloader desbloqueado**
+- ⚠️ Não injeta variáveis U-Boot customizadas
+- ⚠️ Pode resultar em tela preta se o bootloader não encontrar o kernel
+- ✅ Útil para testes iniciais em novos dispositivos
+- 💡 Recomendado: Extrair variáveis U-Boot e criar perfil customizado
+
+#### Adaptação para Outras Distribuições
+
 **Pode ser adaptado para outras distribuições Linux?**
 
 ✅ **Sim**, desde que a distribuição siga a mesma estrutura de partições (BOOT FAT32 + ROOTFS ext4). Exemplos:
@@ -262,8 +280,7 @@ Dispositivos com bootloader locked (HTV, BTV, ATV) não permitem modificação d
 Cada arquivo `.conf` contém:
 
 | Campo | Descrição |
-|-------|-----------||
-| `BOARD_NAME` | Nome legível do dispositivo (ex: "ATV A5 (S905X3)") |
+|-------|-----------|n| `BOARD_NAME` | Nome legível do dispositivo (ex: "ATV A5 (S905X3)") |
 | `AUTHOR` | Autor do perfil |
 | `ENV_OFFSET` | Setor onde injetar as variáveis do U-Boot (geralmente 0) |
 | `ENV_FILE` | Caminho para o arquivo `.img` das variáveis |
@@ -291,7 +308,7 @@ eMMC Layout:
 Cada dispositivo define seu próprio `LINUX_START_SECTOR` (onde começa a partição BOOT):
 
 | Perfil | LINUX_START_SECTOR | Tamanho Reserved | Método Extração |
-|--------|-------------------|------------------|-----------------||
+|--------|-------------------|------------------|-----------------|
 | HTV H8 | 262144 | 128 MB | Método 1 (Regeneração) |
 | BTV E10 | 278528 | 136 MB | Método 2 (Ampart) |
 | ATV A5 | 278528 | 136 MB | Método 2 (Ampart) |
