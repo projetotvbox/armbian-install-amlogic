@@ -5,7 +5,7 @@
 [![Armbian](https://img.shields.io/badge/Armbian-Focused-orange.svg)](https://www.armbian.com/)
 [![AMLogic](https://img.shields.io/badge/AMLogic-S905X%2FX2%2FX3-blue.svg)](https://en.wikipedia.org/wiki/Amlogic)
 
-> **Language / Idioma:** [English](README.en.md) | **Português**
+> **Language / Idioma:** [English](README.en.md) | **[🟢 Português]**
 
 Instalador automatizado para transferir **Armbian** de pendrive/SD para eMMC em TV Boxes AMLogic, com suporte especial para dispositivos com bootloader locked. Desenvolvido especificamente para Armbian, mas adaptável para outras distribuições Linux ARM com conhecimentos técnicos.
 
