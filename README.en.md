@@ -44,7 +44,8 @@ Automated installer to transfer **Armbian** from USB/SD to eMMC on AMLogic TV Bo
 - [💡 Technical Notes and Advanced Tips](#-technical-notes-and-advanced-tips)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🙏 Credits](#-credits)
-- [📄 License](#-license)
+- [� Contributors](#-contributors)
+- [�📄 License](#-license)
 - [⚠️ Legal Disclaimer](#️-legal-disclaimer)
 
 ---
@@ -1321,7 +1322,32 @@ During development, the following projects were studied as technical reference:
 
 ---
 
-## 📄 License
+## � Contributors
+
+### Main Author
+
+- **[Pedro Rigolin](https://github.com/pedrohrigolin)** - Lead developer and project maintainer
+
+### Collaborators
+
+This project thanks all who contributed with code, documentation, tests, and feedback:
+
+> See the complete list of contributors at: [Contributors](https://github.com/projetotvbox/armbian-install-amlogic-project/graphs/contributors)
+
+**How to contribute:**
+
+If you want to contribute to the project:
+1. Fork the repository
+2. Create a branch for your feature (`git checkout -b feature/MyFeature`)
+3. Commit your changes (`git commit -m 'Add new feature'`)
+4. Push to the branch (`git push origin feature/MyFeature`)
+5. Open a Pull Request
+
+All contributions are welcome! 🎉
+
+---
+
+## �📄 License
 
 This project is licensed under the **MIT License**.
 

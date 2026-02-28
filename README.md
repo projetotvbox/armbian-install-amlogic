@@ -44,7 +44,8 @@ Instalador automatizado para transferir **Armbian** de pendrive/SD para eMMC em 
 - [💡 Notas Técnicas e Dicas Avançadas](#-notas-técnicas-e-dicas-avançadas)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [🙏 Créditos](#-créditos)
-- [📄 Licença](#-licença)
+- [� Contribuidores](#-contribuidores)
+- [�📄 Licença](#-licença)
 - [⚠️ Aviso Legal](#️-aviso-legal)
 
 ---
@@ -1321,7 +1322,32 @@ Durante o desenvolvimento, os seguintes projetos foram estudados como referênci
 
 ---
 
-## 📄 Licença
+## � Contribuidores
+
+### Autor Principal
+
+- **[Pedro Rigolin](https://github.com/pedrohrigolin)** - Desenvolvedor principal e mantenedor do projeto
+
+### Colaboradores
+
+Este projeto agradece a todos que contribuíram com código, documentação, testes e feedback:
+
+> Veja a lista completa de contribuidores em: [Contributors](https://github.com/projetotvbox/armbian-install-amlogic-project/graphs/contributors)
+
+**Como contribuir:**
+
+Se você deseja contribuir com o projeto:
+1. Faça um fork do repositório
+2. Crie uma branch para sua feature (`git checkout -b feature/MinhaFeature`)
+3. Commit suas mudanças (`git commit -m 'Adiciona nova feature'`)
+4. Push para a branch (`git push origin feature/MinhaFeature`)
+5. Abra um Pull Request
+
+Todas as contribuições são bem-vindas! 🎉
+
+---
+
+## �📄 Licença
 
 Este projeto é licenciado sob a **MIT License**.
 
