@@ -153,15 +153,15 @@ Partição 2: ROOTFS (ext4, restante do espaço)
 
 ## 🚀 Preparação Inicial
 
-### ⚠️ Descompactação dos Assets (OBRIGATÓRIO)
+### ⚠️ Descompactação dos Assets (OPCIONAL)
 
-Os arquivos de variáveis U-Boot (`*.img`) estão **compactados com gzip** no repositório devido ao limite de tamanho do GitHub (100MB). Antes de usar o instalador pela primeira vez, você **DEVE** descompactá-los.
+Os arquivos de variáveis U-Boot (`*.img`) estão **compactados com gzip** no repositório. Isso permite armazenar múltiplos perfis de dispositivos sem ocupar espaço desnecessário em disco — arquivos `.img` de 64–132 MB comprimem tipicamente 90%+ do tamanho original.
 
-#### Por que os arquivos estão compactados?
+**O instalador resolve automaticamente** qual arquivo usar: se o `.img` descomprimido não existir no caminho configurado, o script procura pelo `.img.gz` correspondente e o descomprime on-the-fly durante a injeção via `pigz`. **Não é necessário descompactar manualmente antes de usar.**
 
-Os arquivos `.img` contêm imagens binárias das variáveis do U-Boot extraídas de dispositivos reais. Esses arquivos têm dezenas de megabytes e, quando compactados, reduzem drasticamente de tamanho (tipicamente 90%+), permitindo que sejam versionados no Git.
+#### Quando descompactar manualmente?
 
-#### Como descompactar:
+Apenas se você preferir eliminar o overhead de descompressão durante a instalação, ou se não tiver `pigz` disponível no ambiente:
 
 **Método Recomendado (Descompacta todos os assets):**
 
@@ -182,7 +182,7 @@ gunzip -k armbian-install-amlogic/assets/uboot_envs_atv_a5.img.gz
 
 #### Verificação
 
-Após descompactar, confirme que os arquivos `.img` existem:
+Se optou por descompactar, confirme que os arquivos `.img` existem:
 
 ```bash
 ls -lh armbian-install-amlogic/assets/*.img
@@ -193,8 +193,6 @@ Você deve ver arquivos como:
 - `uboot_envs_btv_e10.img`
 - `uboot_envs_htv_h8.img`
 
-**Sem essa etapa, o instalador falhará** ao tentar injetar as variáveis do U-Boot, resultando em erro durante a instalação.
-
 ---
 
 ## 💾 Instalação no Sistema
@@ -203,9 +201,9 @@ Você deve ver arquivos como:
 
 Para instalar o script de forma permanente no sistema Armbian do pendrive/SD, siga os passos abaixo:
 
-### 1. Descompactar Assets
+### 1. Descompactar Assets (Opcional)
 
-Se ainda não descompactou os assets, consulte a seção **[Preparação Inicial](#preparação-inicial)** para instruções detalhadas.
+A descompactação manual dos assets **não é obrigatória** — o instalador resolve e descomprime o `.img.gz` automaticamente se necessário. Caso prefira descompactar antecipadamente para eliminar o overhead durante a instalação:
 
 ```bash
 cd armbian-install-amlogic/assets/ && gunzip -k *.img.gz && cd ../..
@@ -315,13 +313,14 @@ O script verifica e instala automaticamente as seguintes dependências:
 - `dosfstools` - Ferramentas para sistema de arquivos FAT32 (`mkfs.vfat`)
 - `e2fsprogs` - Ferramentas para sistema de arquivos ext4 (`mkfs.ext4`)
 - `util-linux` - Fornece `lsblk`, `blkid`, `flock`, `dmesg`, `mount`, `umount`
-- `fdisk` - Editor de tabela de partições
+- `fdisk` - Editor de tabela de partições *(resolvido por detecção de binário: em sistemas onde já está incluído no `util-linux`, não é instalado separadamente)*
 - `parted` - Fornece `partprobe` para notificar o kernel sobre mudanças nas partições
-- `bsdextrautils` - Fornece `hexdump`
+- `hexdump` - Inspeção de dados binários em hex *(resolvido por detecção de binário: `bsdextrautils` no Debian 11+, `bsdmainutils` no Ubuntu e versões anteriores)*
+- `pigz` - Compressão gzip paralela, utilizada na descompressão on-the-fly dos assets
 - `rsync` - Sincronização eficiente de arquivos
 - `udev` - Fornece `udevadm`
 
-> ⚠️ **Aviso:** Os pacotes acima serão instalados automaticamente caso não estejam presentes no sistema. Se preferir removê-los após a instalação, utilize `sudo apt remove <pacote>`. Atenção: pacotes como `util-linux` e `udev` são componentes essenciais do sistema — **não os remova** a menos que tenha certeza de que não são usados por outros programas.
+> ⚠️ **Aviso:** Os pacotes acima serão instalados automaticamente caso não estejam presentes no sistema. O script detecta automaticamente o pacote correto para `hexdump` e `fdisk` de acordo com a distribuição em uso, garantindo compatibilidade com Debian 11+, Ubuntu Focal e derivadas. Se preferir remover as dependências após a instalação, utilize `sudo apt remove <pacote>`. Atenção: pacotes como `util-linux` e `udev` são componentes essenciais do sistema — **não os remova** a menos que tenha certeza de que não são usados por outros programas.
 
 ### Arquitetura do Projeto
 
@@ -477,8 +476,8 @@ flowchart TD
 ```
 
 > **Nota para Desenvolvedores**: 
-> - **Validação de perfil**: O instalador valida apenas se o `ENV_FILE` especificado existe no caminho configurado. Se o arquivo não existir, aborta com erro.
-> - **Injeção de variáveis**: As variáveis U-Boot são injetadas no offset definido em `ENV_OFFSET` (varia por dispositivo: 0, 237568, etc.) usando `dd` com `seek`.
+> - **Validação de perfil**: O instalador resolve o `ENV_FILE` em duas etapas: primeiro testa o caminho exato definido no `.conf` (esperado como `.img`); se não encontrado, testa o mesmo caminho com sufixo `.gz`. Se o `.gz` for encontrado, executa validação de integridade via `pigz -t` antes de prosseguir. Se nenhum dos dois existir, aborta com erro.
+> - **Injeção de variáveis**: Se o `ENV_FILE` resolvido for `.gz`, a descompressão é feita on-the-fly via `pigz -dc` em pipe direto para o `dd`. Os arquivos `.conf` sempre apontam para o `.img` — a resolução para `.gz` é transparente.
 > - **Modo Genérico**: Se `ENV_FILE` e `ENV_OFFSET` não forem definidos no perfil, o instalador desabilita injeção automaticamente mas continua a instalação.
 
 ### Operações de Disco
@@ -501,7 +500,7 @@ mkfs.ext4 -F -q -L ROOTFS /dev/mmcblkXp2
 
 **BOOT Partition:**
 ```bash
-cp -rL /mnt/src_boot/* /mnt/tgt_boot/
+rsync -rtHL --no-owner --no-group --no-perms /mnt/src_boot/ /mnt/tgt_boot/
 ```
 
 **ROOTFS Partition:**
@@ -514,10 +513,14 @@ rsync -aAXv --delete \
 ### Injeção de Variáveis U-Boot
 
 ```bash
+# Asset descomprimido (.img): injeção direta
 dd if=uboot_envs_device.img of=/dev/mmcblkX bs=512 seek=$ENV_OFFSET conv=notrunc
+
+# Asset comprimido (.img.gz): descompressão on-the-fly via pigz
+pigz -dc uboot_envs_device.img.gz | dd of=/dev/mmcblkX bs=512 seek=$ENV_OFFSET conv=notrunc
 ```
 
-Escreve variáveis diretamente no offset especificado (geralmente setor 0).
+Escreve variáveis diretamente no offset especificado (geralmente setor 0). O instalador detecta automaticamente se o asset está comprimido e escolhe o método adequado.
 
 ### Atualização de Configurações
 
@@ -1065,6 +1068,8 @@ ENV_FILE="/etc/armbian-install-amlogic/assets/uboot_envs_mydevice.img"
 LINUX_START_SECTOR=262144
 ```
 
+> **⚠️ Importante:** O `ENV_FILE` deve sempre apontar para o caminho do `.img`, **mesmo que no diretório exista apenas o `.img.gz`**. O instalador tenta o `.img` primeiro e, se não encontrar, resolve automaticamente para o `.img.gz` correspondente. Nunca aponte para `.img.gz` diretamente no `.conf`.
+
 #### Exemplo Método 2 (Ampart - como BTV E10)
 
 **Cenário:** Ampart mostrou partição `data` começando em 132 MB, extraímos desde byte 0.
@@ -1091,6 +1096,8 @@ ENV_OFFSET=0
 ENV_FILE="/etc/armbian-install-amlogic/assets/uboot_envs_mydevice.img"
 LINUX_START_SECTOR=278528
 ```
+
+> **⚠️ Importante:** O `ENV_FILE` deve sempre apontar para o caminho do `.img`, **mesmo que no diretório exista apenas o `.img.gz`**. O instalador tenta o `.img` primeiro e, se não encontrar, resolve automaticamente para o `.img.gz` correspondente. Nunca aponte para `.img.gz` diretamente no `.conf`.
 
 #### Validação dos Valores
 

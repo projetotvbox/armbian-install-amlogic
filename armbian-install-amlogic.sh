@@ -14,7 +14,6 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# ------------------------------------------------------------------------------
 # DEPENDENCY CHECK
 # Required packages:
 #   - pv: Progress viewer for disk operations
@@ -23,14 +22,30 @@ fi
 #   - dosfstools: FAT32 filesystem tools (mkfs.vfat)
 #   - e2fsprogs: ext4 filesystem tools (mkfs.ext4)
 #   - util-linux: Provides lsblk, blkid, flock, dmesg, mount, umount
-#   - fdisk: Partition table editor
+#   - fdisk: Partition table editor (standalone pkg on Debian 11+; binary ships
+#            with util-linux on older Ubuntu — checked by binary, not by package)
 #   - parted: Provides partprobe to notify kernel of partition changes
-#   - bsdextrautils: Provides hexdump
+#   - bsdextrautils (Debian 11+) / bsdmainutils (Ubuntu/older): Provides hexdump
+#   - pigz: Parallel gzip compression
 #   - rsync: Efficient file synchronization
 #   - udev: Provides udevadm
 # ------------------------------------------------------------------------------
-# list of packages we rely on; use array so we can quote safely later
-DEPENDENCIES=(pv ncurses-bin dialog dosfstools e2fsprogs util-linux fdisk parted bsdextrautils rsync udev)
+DEPENDENCIES=(pv ncurses-bin dialog dosfstools e2fsprogs util-linux parted pigz rsync udev)
+
+# fdisk: standalone package on Debian 11+; already bundled in util-linux on older Ubuntu.
+if ! command -v fdisk &>/dev/null; then
+    DEPENDENCIES+=(fdisk)
+fi
+
+# hexdump: provided by bsdextrautils (Debian 11+) or bsdmainutils (Ubuntu/older).
+if ! command -v hexdump &>/dev/null; then
+    if apt-cache show bsdextrautils &>/dev/null 2>&1; then
+        DEPENDENCIES+=(bsdextrautils)
+    else
+        DEPENDENCIES+=(bsdmainutils)
+    fi
+fi
+
 MISSING_PKGS=()
 
 echo "Checking dependencies..."
@@ -490,9 +505,30 @@ else
         SELECTED_PROFILE_NAME="$BOARD_NAME"
 
         if [ ! -f "$ENV_FILE" ]; then
-            log_error "Specified ENV_FILE '$ENV_FILE' does not exist"
-            log_debug "Checking path: $(ls -la "$(dirname "$ENV_FILE")" 2>&1)"
-            exit 1
+
+            # .img not found, try .img.gz
+            if [ -f "${ENV_FILE}.gz" ]; then
+
+                log_debug "ENV_FILE '$ENV_FILE' not found, found compressed variant: ${ENV_FILE}.gz"
+
+                ENV_FILE="${ENV_FILE}.gz"
+
+                log "Validating gzip integrity of ENV_FILE: $ENV_FILE"
+                if ! pigz -t "$ENV_FILE" >> "$TEMP_LOG" 2>&1; then
+                    log_error "ENV_FILE '${ENV_FILE}' failed gzip integrity check"
+                    exit 1
+                fi
+
+                log_debug "ENV_FILE gzip integrity OK"
+
+            else
+
+                log_error "Specified ENV_FILE '${ENV_FILE}' does not exist (tried .img and .img.gz)"
+                log_debug "Checking path: $(ls -la "$(dirname "$ENV_FILE")" 2>&1)"
+                exit 1
+
+            fi
+
         fi
         log_debug "ENV_FILE exists and is accessible"
 
@@ -506,6 +542,7 @@ else
         SELECTED_PROFILE_NAME="$BOARD_NAME (No Env Injection)"
     
     fi
+    
 fi
 
 log "Selected Profile: $SELECTED_PROFILE_NAME"
@@ -605,8 +642,22 @@ if [ "$ENV_INJECTION" == "true" ]; then
         --infobox "\nInjecting bootloader environment for $BOARD_NAME..." 5 60
     
     # Write environment binary to specific sector offset
-    dd if="$ENV_FILE" of="$TARGET_DISK" bs=512 seek="$ENV_OFFSET" conv=notrunc >> "$TEMP_LOG" 2>&1
-    DD_EXIT_CODE=$?
+    if [[ "$ENV_FILE" == *.gz ]]; then
+
+        log_debug "ENV_FILE is gzip compressed, decompressing on-the-fly via pigz"
+        log_debug "pigz command: pigz -dc $ENV_FILE | dd of=$TARGET_DISK bs=512 seek=$ENV_OFFSET conv=notrunc"
+
+        pigz -dc "$ENV_FILE" | dd of="$TARGET_DISK" bs=512 seek="$ENV_OFFSET" conv=notrunc >> "$TEMP_LOG" 2>&1
+        DD_EXIT_CODE=${PIPESTATUS[1]}
+
+    else
+
+        log_debug "DD command: dd if=$ENV_FILE of=$TARGET_DISK bs=512 seek=$ENV_OFFSET conv=notrunc"
+
+        dd if="$ENV_FILE" of="$TARGET_DISK" bs=512 seek="$ENV_OFFSET" conv=notrunc >> "$TEMP_LOG" 2>&1
+        DD_EXIT_CODE=$?
+
+    fi
     
     log_debug "dd exit code: $DD_EXIT_CODE"
         
@@ -875,13 +926,13 @@ log "Starting CP for BOOT partition..."
 BOOT_SRC_SIZE=$(du -sh "$MNT_SRC_BOOT" 2>/dev/null | cut -f1)
 log_debug "Source BOOT size: $BOOT_SRC_SIZE"
 log_debug "Source BOOT contents: $(ls -la $MNT_SRC_BOOT 2>/dev/null | head -20)"
-log_debug "cp command: cp -rL $MNT_SRC_BOOT/* $MNT_TGT_BOOT/"
+log_debug "rsync command: rsync -rtHL --no-owner --no-group --no-perms $MNT_SRC_BOOT/ $MNT_TGT_BOOT/"
 
 dialog --backtitle "$BACKTITLE" \
        --title "Wait" \
        --infobox "\nCopying BOOT partition data...\n\nThis may take a while. Please wait." 7 60
 
-cp -rL "$MNT_SRC_BOOT"/* "$MNT_TGT_BOOT"/ >> "$TEMP_LOG" 2>&1
+rsync -rtHL --no-owner --no-group --no-perms "$MNT_SRC_BOOT"/ "$MNT_TGT_BOOT"/ >> "$TEMP_LOG" 2>&1
 CP_BOOT_EXIT=$?
 
 log_debug "cp exit code: $CP_BOOT_EXIT"
