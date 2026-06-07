@@ -23,8 +23,12 @@ Automated installer to transfer **Armbian** from USB/SD to eMMC on AMLogic TV Bo
   - [📋 Expected Boot Device Structure](#-expected-boot-device-structure)
   - [🔧 Compatibility and Adaptability](#-compatibility-and-adaptability)
 - [✨ Features](#-features)
-- [🚀 Initial Preparation](#-initial-preparation)
-- [💾 System Installation](#-system-installation)
+- [🚀 Quick Start](#-quick-start)
+  - [Installation on Running System](#installation-on-running-system)
+  - [Installation into .img Image](#installation-into-img-image)
+- [🔧 Manual Installation](#-manual-installation)
+  - [On Running System](#on-running-system)
+  - [Into Image via losetup](#into-image-via-losetup)
 - [📱 Usage](#-usage)
   - [Installation Flow](#installation-flow)
   - [Operation Modes](#operation-modes)
@@ -151,98 +155,184 @@ Partition 2: ROOTFS (ext4, remaining space)
 
 ---
 
-## 🚀 Initial Preparation
+## 🚀 Quick Start
 
-### ⚠️ Asset Decompression (OPTIONAL)
+### Understanding the Project Scripts
 
-U-Boot variable files (`*.img`) are **gzip compressed** in the repository. This allows storing multiple device profiles without unnecessarily occupying disk space — `.img` files of 64–132 MB typically compress 90%+ of their original size.
+This repository contains **three distinct scripts** with complementary roles — it is important not to confuse them:
 
-**The installer automatically resolves** which file to use: if the decompressed `.img` doesn't exist at the configured path, the script looks for the corresponding `.img.gz` and decompresses it on-the-fly during injection via `pigz`. **Manual decompression is not required before use.**
+| Script | Role |
+|--------|------|
+| `armbian-install-amlogic.sh` | **The main installer.** Transfers Armbian from USB/SD to the device's internal eMMC. This is what the end user runs on the target hardware. |
+| `install-to-system.sh` | **System installer.** Injects `armbian-install-amlogic.sh` and device profiles into the Armbian system already running from USB/SD, preparing it for the eMMC installation. |
+| `install-to-image.sh` | **Image installer.** Injects `armbian-install-amlogic.sh` and device profiles directly into an Armbian `.img` file, before it is flashed to USB/SD. Useful for preparing the image on a computer before taking it to the hardware. |
 
-#### When to decompress manually?
+The typical flow is: use `install-to-system.sh` or `install-to-image.sh` to prepare the environment → boot the device from USB/SD → run `armbian-install-amlogic` to install to eMMC.
 
-Only if you prefer to eliminate the decompression overhead during installation, or if `pigz` is not available in your environment:
+### Asset Format: `.img.gz` or `.img`?
 
-**Recommended Method (Decompress all assets):**
+During installation via `install-to-system.sh` or `install-to-image.sh`, the installer asks for the U-Boot asset format for each selected profile:
 
-```bash
-cd armbian-install-amlogic/assets/
-gunzip -k *.img.gz
-cd ../..
-```
+- **Compressed (`.img.gz`) — recommended:** occupies significantly less disk space (typically 90%+ reduction). `armbian-install-amlogic.sh` decompresses the asset automatically via `pigz` during eMMC injection, with no prior decompression needed. Ideal for keeping multiple profiles on USB/SD without wasting space.
+- **Decompressed (`.img`):** eliminates the decompression overhead at the time of eMMC installation. Only relevant on hardware with a very limited CPU where `pigz` decompression would be a noticeable bottleneck — which rarely occurs in practice.
 
-The `-k` flag keeps the original `.gz` files intact.
-
-**Alternative Method (Decompress specific asset):**
-
-```bash
-# Example: only for ATV A5
-gunzip -k armbian-install-amlogic/assets/uboot_envs_atv_a5.img.gz
-```
-
-#### Verification
-
-If you chose to decompress, confirm that `.img` files exist:
-
-```bash
-ls -lh armbian-install-amlogic/assets/*.img
-```
-
-You should see files like:
-- `uboot_envs_atv_a5.img`
-- `uboot_envs_btv_e10.img`
-- `uboot_envs_htv_h8.img`
+> **Recommendation:** use `.img.gz` in almost all cases. The difference in installation time is imperceptible in practice, and the space savings are substantial.
 
 ---
 
-## 💾 System Installation
+### Installation on Running System
 
-> **📍 Important Context:** The commands below should be executed **on the Armbian system running from USB/SD card**. The installer needs to be available on the removable system before using it to transfer Armbian to the device's internal eMMC.
+Use `install-to-system.sh` when the Armbian system is already running directly from USB/SD on the target hardware or any Debian/Ubuntu machine. The installer automatically detects and installs dependencies via `apt`, presents an interactive menu for profile selection, and copies all necessary files to the correct destinations.
 
-To permanently install the script on the Armbian system from USB/SD, follow the steps below:
+> **📍 Context:** Run on the Armbian system from USB/SD, before executing `armbian-install-amlogic` to install to eMMC.
 
-### 1. Decompress Assets (Optional)
+```bash
+# Clone the repository
+git clone https://github.com/projetotvbox/armbian-install-amlogic.git
+cd armbian-install-amlogic
 
-Manual asset decompression is **not required** — the installer automatically resolves and decompresses `.img.gz` files if needed. If you prefer to decompress in advance to eliminate overhead during installation:
+# Run the installer
+sudo ./install-to-system.sh
+```
+
+The installer will:
+1. Check and automatically install dependencies via `apt`
+2. Present a checklist for selecting desired device profiles — including the generic installation option (no specific profile)
+3. For each profile with an asset, ask the installation format (`.img.gz` or `.img`)
+4. Copy the main script, profiles and assets to the correct destinations (`/usr/bin/` and `/etc/armbian-install-amlogic/`)
+5. Set appropriate permissions
+
+After installation, run the main installer to transfer the system to eMMC:
+
+```bash
+sudo armbian-install-amlogic
+```
+
+### Installation into .img Image
+
+Use `install-to-image.sh` when you want to prepare the Armbian image on a computer before flashing it to USB/SD. The script attaches the image via `losetup`, automatically identifies the rootfs partition, and injects all files, leaving the image ready for use.
+
+> **⚠️ Host requirements:** `dialog`, `pigz`, `losetup`, `blkid`, `fdisk`. The script checks and lists which ones are missing, but **does not install automatically** — the host system can be any Linux distribution.
+
+```bash
+# Clone the repository
+git clone https://github.com/projetotvbox/armbian-install-amlogic.git
+cd armbian-install-amlogic
+
+# Run the installer passing the image path as argument
+sudo ./install-to-image.sh /path/to/Armbian.img
+```
+
+The installer will:
+1. Check dependencies on the host system
+2. Attach the image as a loop device via `losetup -fP` and identify the rootfs (ext4) partition via `blkid`
+3. Present a checklist for selecting desired device profiles — including the generic installation option
+4. For each profile with an asset, ask the installation format (`.img.gz` or `.img`)
+5. Mount the rootfs, inject the files, sync and safely unmount
+
+After injection, the image is ready to be flashed to USB/SD. Once booted, run:
+
+```bash
+sudo armbian-install-amlogic
+```
+
+---
+
+## 🔧 Manual Installation
+
+> Use this section only if you prefer not to use the automatic installers, or if you need greater control over the process.
+
+### On Running System
+
+> **📍 Context:** The commands below should be executed **on the Armbian system running from USB/SD card**.
+
+#### 1. Decompress Assets (Optional)
+
+The `.img.gz` assets are automatically resolved by the installer. Decompress manually only if you prefer to eliminate decompression overhead:
 
 ```bash
 cd armbian-install-amlogic/assets/ && gunzip -k *.img.gz && cd ../..
 ```
 
-### 2. Copy Main Script to Armbian System
+#### 2. Copy Main Script
 
 ```bash
-# Copy script to /usr/bin of Armbian system (USB/SD)
 sudo cp armbian-install-amlogic.sh /usr/bin/armbian-install-amlogic
 sudo chmod +x /usr/bin/armbian-install-amlogic
 ```
 
-### 3. Copy Configurations and Assets to Armbian System
+#### 3. Copy Configurations and Assets
 
 ```bash
-# Copy profiles and assets to /etc of Armbian system (USB/SD)
 sudo cp -r armbian-install-amlogic /etc/
 ```
 
-### 4. Set Correct Permissions
+#### 4. Set Permissions
 
 ```bash
-# Permissions for directories (755) and files (644)
 sudo chmod -R 755 /etc/armbian-install-amlogic
 sudo find /etc/armbian-install-amlogic -type f -exec chmod 644 {} \;
 ```
 
-**Permission explanation:**
-- `755` for directories: Allows navigation and listing
-- `644` for files: Read for all, write only for root
-
-### 5. Run Installer
-
-After installation on Armbian system from USB/SD, run the installer to transfer the system to eMMC:
+#### 5. Run
 
 ```bash
 sudo armbian-install-amlogic
 ```
+
+### Into Image via losetup
+
+To inject the installer into a `.img` image without using `install-to-image.sh`:
+
+#### 1. Attach the image as a loop device
+
+```bash
+LOOP_DEV=$(sudo losetup -fP --show /path/to/Armbian.img)
+echo "Loop device: $LOOP_DEV"
+```
+
+#### 2. Identify the rootfs partition
+
+```bash
+# List partitions and their filesystem types
+sudo blkid ${LOOP_DEV}p*
+```
+
+The rootfs partition will be the one with type `ext4`, usually `${LOOP_DEV}p2`.
+
+#### 3. Mount the rootfs
+
+```bash
+sudo mkdir -p /mnt/armbian-rootfs
+sudo mount ${LOOP_DEV}p2 /mnt/armbian-rootfs
+```
+
+#### 4. Inject files
+
+```bash
+# Main script
+sudo cp armbian-install-amlogic.sh /mnt/armbian-rootfs/usr/bin/armbian-install-amlogic
+sudo chmod +x /mnt/armbian-rootfs/usr/bin/armbian-install-amlogic
+
+# Profiles and assets
+sudo mkdir -p /mnt/armbian-rootfs/etc/armbian-install-amlogic
+sudo cp -r armbian-install-amlogic/profiles /mnt/armbian-rootfs/etc/armbian-install-amlogic/
+sudo cp -r armbian-install-amlogic/assets   /mnt/armbian-rootfs/etc/armbian-install-amlogic/
+
+# Permissions
+sudo chmod -R 755 /mnt/armbian-rootfs/etc/armbian-install-amlogic
+sudo find /mnt/armbian-rootfs/etc/armbian-install-amlogic -type f -exec chmod 644 {} \;
+```
+
+#### 5. Unmount and release loop device
+
+```bash
+sync
+sudo umount /mnt/armbian-rootfs
+sudo losetup -d "$LOOP_DEV"
+```
+
+The image is ready to be flashed.
 
 ---
 
@@ -1124,30 +1214,23 @@ echo $((237568 / 2048))   # Should return 116 (reverse check)
 
 ### 3. Install on Armbian System
 
-Copy main script and configurations to system:
+With the new profile and asset in the repository, use the installer to inject into the running system or image:
+
+**Via installer (recommended):**
 
 ```bash
-# Copy script to /usr/bin of Armbian system (USB/SD)
-sudo cp armbian-install-amlogic.sh /usr/bin/armbian-install-amlogic
-sudo chmod +x /usr/bin/armbian-install-amlogic
+# On running Armbian system (USB/SD)
+sudo ./install-to-system.sh
 
-# Copy profiles and assets to /etc of Armbian system (USB/SD)
-sudo cp -r armbian-install-amlogic /etc/
+# On a .img image
+sudo ./install-to-image.sh /path/to/Armbian.img
 ```
 
-### 4. Set Correct Permissions
+The installer will present the new profile in the selection menu with the `BOARD_NAME` defined in the `.conf`.
 
-```bash
-# Permissions for directories (755) and files (644)
-sudo chmod -R 755 /etc/armbian-install-amlogic
-sudo find /etc/armbian-install-amlogic -type f -exec chmod 644 {} \;
-```
+**Manually** (if you prefer not to use the installer): see the [Manual Installation](#-manual-installation) section.
 
-**Permission explanation:**
-- `755` for directories: Allows navigation and listing
-- `644` for files: Read for all, write only for root
-
-### 5. Test
+### 4. Test
 
 Run installer and verify new profile appears in selection list:
 

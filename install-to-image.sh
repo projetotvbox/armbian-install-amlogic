@@ -521,6 +521,10 @@ for idx in "${BOARD_IDX_ARRAY[@]}"; do
 
 done
 
+log "Setting permissions on $MNT_DEST_ASSETS and $MNT_DEST_PROFILES..."
+chmod -R 755 "$MNT_ROOTFS$DEST_BASE"
+find "$MNT_ROOTFS$DEST_BASE" -type f -exec chmod 644 {} \;
+
 # Sync before unmount
 dialog --backtitle "$BACKTITLE" \
     --title "Injecting" \

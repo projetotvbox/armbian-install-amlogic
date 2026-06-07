@@ -23,8 +23,12 @@ Instalador automatizado para transferir **Armbian** de pendrive/SD para eMMC em 
   - [📋 Estrutura Esperada do Dispositivo de Boot](#-estrutura-esperada-do-dispositivo-de-boot)
   - [🔧 Compatibilidade e Adaptabilidade](#-compatibilidade-e-adaptabilidade)
 - [✨ Características](#-características)
-- [🚀 Preparação Inicial](#-preparação-inicial)
-- [💾 Instalação no Sistema](#-instalação-no-sistema)
+- [🚀 Quick Start](#-quick-start)
+  - [Instalação em Sistema Rodando](#instalação-em-sistema-rodando)
+  - [Instalação em Imagem .img](#instalação-em-imagem-img)
+- [🔧 Instalação Manual](#-instalação-manual)
+  - [Em Sistema Rodando](#em-sistema-rodando)
+  - [Em Imagem via losetup](#em-imagem-via-losetup)
 - [📱 Uso](#-uso)
   - [Fluxo de Instalação](#fluxo-de-instalação)
   - [Modos de Operação](#modos-de-operação)
@@ -151,98 +155,184 @@ Partição 2: ROOTFS (ext4, restante do espaço)
 
 ---
 
-## 🚀 Preparação Inicial
+## 🚀 Quick Start
 
-### ⚠️ Descompactação dos Assets (OPCIONAL)
+### Entendendo os Scripts do Projeto
 
-Os arquivos de variáveis U-Boot (`*.img`) estão **compactados com gzip** no repositório. Isso permite armazenar múltiplos perfis de dispositivos sem ocupar espaço desnecessário em disco — arquivos `.img` de 64–132 MB comprimem tipicamente 90%+ do tamanho original.
+Este repositório contém **três scripts distintos** com funções complementares — é importante não confundi-los:
 
-**O instalador resolve automaticamente** qual arquivo usar: se o `.img` descomprimido não existir no caminho configurado, o script procura pelo `.img.gz` correspondente e o descomprime on-the-fly durante a injeção via `pigz`. **Não é necessário descompactar manualmente antes de usar.**
+| Script | Função |
+|--------|--------|
+| `armbian-install-amlogic.sh` | **O instalador principal.** Transfere o Armbian do pendrive/SD para a eMMC interna do dispositivo. É ele que o usuário final executa no hardware alvo. |
+| `install-to-system.sh` | **Instalador de sistema.** Injeta o `armbian-install-amlogic.sh` e os perfis de dispositivos no sistema Armbian que já está rodando do pendrive/SD, preparando-o para a instalação na eMMC. |
+| `install-to-image.sh` | **Instalador de imagem.** Injeta o `armbian-install-amlogic.sh` e os perfis diretamente em um arquivo `.img` do Armbian, antes mesmo de ser flashado no pendrive/SD. Útil para quem quer preparar a imagem em um computador antes de levar ao hardware. |
 
-#### Quando descompactar manualmente?
+O fluxo típico é: usar `install-to-system.sh` ou `install-to-image.sh` para preparar o ambiente → bootar o dispositivo pelo pendrive/SD → executar `armbian-install-amlogic` para instalar na eMMC.
 
-Apenas se você preferir eliminar o overhead de descompressão durante a instalação, ou se não tiver `pigz` disponível no ambiente:
+### Formato dos Assets: `.img.gz` ou `.img`?
 
-**Método Recomendado (Descompacta todos os assets):**
+Durante a instalação via `install-to-system.sh` ou `install-to-image.sh`, o instalador pergunta o formato do asset U-Boot para cada perfil selecionado:
 
-```bash
-cd armbian-install-amlogic/assets/
-gunzip -k *.img.gz
-cd ../..
-```
+- **Comprimido (`.img.gz`) — recomendado:** ocupa significativamente menos espaço em disco (tipicamente 90%+ de redução). O `armbian-install-amlogic.sh` descomprime o asset automaticamente via `pigz` durante a injeção na eMMC, sem necessidade de descompressão prévia. Ideal para manter múltiplos perfis no pendrive/SD sem desperdiçar espaço.
+- **Descomprimido (`.img`):** elimina o overhead de descompressão no momento da instalação na eMMC. Relevante apenas em hardware com CPU muito limitada onde a descompressão via `pigz` seja um gargalo perceptível — o que raramente ocorre na prática.
 
-A flag `-k` mantém os arquivos `.gz` originais intactos.
-
-**Método Alternativo (Descompacta um asset específico):**
-
-```bash
-# Exemplo: apenas para ATV A5
-gunzip -k armbian-install-amlogic/assets/uboot_envs_atv_a5.img.gz
-```
-
-#### Verificação
-
-Se optou por descompactar, confirme que os arquivos `.img` existem:
-
-```bash
-ls -lh armbian-install-amlogic/assets/*.img
-```
-
-Você deve ver arquivos como:
-- `uboot_envs_atv_a5.img`
-- `uboot_envs_btv_e10.img`
-- `uboot_envs_htv_h8.img`
+> **Recomendação:** use `.img.gz` na quase totalidade dos casos. A diferença de tempo de instalação é imperceptível na prática, e a economia de espaço é substancial.
 
 ---
 
-## 💾 Instalação no Sistema
+### Instalação em Sistema Rodando
 
-> **📍 Contexto Importante:** Os comandos abaixo devem ser executados **no sistema Armbian rodando do pendrive/cartão SD**. O instalador precisa estar disponível no sistema removível antes de usá-lo para transferir o Armbian para a eMMC interna do dispositivo.
+Use `install-to-system.sh` quando o sistema Armbian já está rodando diretamente do pendrive/SD no hardware alvo ou em qualquer máquina Debian/Ubuntu. O instalador detecta e instala automaticamente as dependências via `apt`, apresenta um menu interativo para seleção dos perfis e copia todos os arquivos necessários para os destinos corretos.
 
-Para instalar o script de forma permanente no sistema Armbian do pendrive/SD, siga os passos abaixo:
+> **📍 Contexto:** Execute no sistema Armbian do pendrive/SD, antes de rodar o `armbian-install-amlogic` para instalar na eMMC.
 
-### 1. Descompactar Assets (Opcional)
+```bash
+# Clone o repositório
+git clone https://github.com/projetotvbox/armbian-install-amlogic.git
+cd armbian-install-amlogic
 
-A descompactação manual dos assets **não é obrigatória** — o instalador resolve e descomprime o `.img.gz` automaticamente se necessário. Caso prefira descompactar antecipadamente para eliminar o overhead durante a instalação:
+# Execute o instalador
+sudo ./install-to-system.sh
+```
+
+O instalador irá:
+1. Verificar e instalar dependências automaticamente via `apt`
+2. Apresentar um checklist para seleção dos perfis de dispositivos desejados — incluindo a opção de instalação genérica (sem perfil específico)
+3. Para cada perfil com asset, perguntar o formato de instalação (`.img.gz` ou `.img`)
+4. Copiar o script principal, perfis e assets para os destinos corretos (`/usr/bin/` e `/etc/armbian-install-amlogic/`)
+5. Configurar as permissões adequadas
+
+Após a instalação, execute o instalador principal para transferir o sistema para a eMMC:
+
+```bash
+sudo armbian-install-amlogic
+```
+
+### Instalação em Imagem .img
+
+Use `install-to-image.sh` quando quiser preparar a imagem Armbian em um computador antes de flashá-la no pendrive/SD. O script anexa a imagem via `losetup`, identifica automaticamente a partição rootfs e injeta todos os arquivos, deixando a imagem pronta para uso.
+
+> **⚠️ Requisitos do host:** `dialog`, `pigz`, `losetup`, `blkid`, `fdisk`. O script verifica e lista quais estão faltando, mas **não instala automaticamente** — o sistema host pode ser qualquer distribuição Linux.
+
+```bash
+# Clone o repositório
+git clone https://github.com/projetotvbox/armbian-install-amlogic.git
+cd armbian-install-amlogic
+
+# Execute o instalador passando o caminho da imagem como argumento
+sudo ./install-to-image.sh /caminho/para/Armbian.img
+```
+
+O instalador irá:
+1. Verificar as dependências no sistema host
+2. Anexar a imagem como loop device via `losetup -fP` e identificar a partição rootfs (ext4) via `blkid`
+3. Apresentar um checklist para seleção dos perfis de dispositivos desejados — incluindo a opção de instalação genérica
+4. Para cada perfil com asset, perguntar o formato de instalação (`.img.gz` ou `.img`)
+5. Montar o rootfs, injetar os arquivos, sincronizar e desmontar com segurança
+
+Após a injeção, a imagem está pronta para ser flashada no pendrive/SD. Ao bootar, execute:
+
+```bash
+sudo armbian-install-amlogic
+```
+
+---
+
+## 🔧 Instalação Manual
+
+> Use esta seção apenas se preferir não utilizar os instaladores automáticos, ou se precisar de maior controle sobre o processo.
+
+### Em Sistema Rodando
+
+> **📍 Contexto:** Os comandos abaixo devem ser executados **no sistema Armbian rodando do pendrive/cartão SD**.
+
+#### 1. Descompactar Assets (Opcional)
+
+Os assets `.img.gz` são resolvidos automaticamente pelo instalador. Descompacte manualmente apenas se preferir eliminar o overhead de descompressão:
 
 ```bash
 cd armbian-install-amlogic/assets/ && gunzip -k *.img.gz && cd ../..
 ```
 
-### 2. Copiar Script Principal para o Sistema Armbian
+#### 2. Copiar Script Principal
 
 ```bash
-# Copia o script para /usr/bin do sistema Armbian (pendrive/SD)
 sudo cp armbian-install-amlogic.sh /usr/bin/armbian-install-amlogic
 sudo chmod +x /usr/bin/armbian-install-amlogic
 ```
 
-### 3. Copiar Configurações e Assets para o Sistema Armbian
+#### 3. Copiar Configurações e Assets
 
 ```bash
-# Copia perfis e assets para /etc do sistema Armbian (pendrive/SD)
 sudo cp -r armbian-install-amlogic /etc/
 ```
 
-### 4. Definir Permissões Corretas
+#### 4. Definir Permissões
 
 ```bash
-# Permissões para diretórios (755) e arquivos (644)
 sudo chmod -R 755 /etc/armbian-install-amlogic
 sudo find /etc/armbian-install-amlogic -type f -exec chmod 644 {} \;
 ```
 
-**Explicação das permissões:**
-- `755` para diretórios: Permite navegação e listagem
-- `644` para arquivos: Leitura para todos, escrita apenas para root
-
-### 5. Executar o Instalador
-
-Após a instalação no sistema Armbian do pendrive/SD, execute o instalador para transferir o sistema para a eMMC:
+#### 5. Executar
 
 ```bash
 sudo armbian-install-amlogic
 ```
+
+### Em Imagem via losetup
+
+Para injetar o instalador em uma imagem `.img` sem usar o `install-to-image.sh`:
+
+#### 1. Anexar a imagem como loop device
+
+```bash
+LOOP_DEV=$(sudo losetup -fP --show /caminho/para/Armbian.img)
+echo "Loop device: $LOOP_DEV"
+```
+
+#### 2. Identificar a partição rootfs
+
+```bash
+# Lista as partições e seus tipos de filesystem
+sudo blkid ${LOOP_DEV}p*
+```
+
+A partição rootfs será a de tipo `ext4`, geralmente `${LOOP_DEV}p2`.
+
+#### 3. Montar o rootfs
+
+```bash
+sudo mkdir -p /mnt/armbian-rootfs
+sudo mount ${LOOP_DEV}p2 /mnt/armbian-rootfs
+```
+
+#### 4. Injetar os arquivos
+
+```bash
+# Script principal
+sudo cp armbian-install-amlogic.sh /mnt/armbian-rootfs/usr/bin/armbian-install-amlogic
+sudo chmod +x /mnt/armbian-rootfs/usr/bin/armbian-install-amlogic
+
+# Perfis e assets
+sudo mkdir -p /mnt/armbian-rootfs/etc/armbian-install-amlogic
+sudo cp -r armbian-install-amlogic/profiles /mnt/armbian-rootfs/etc/armbian-install-amlogic/
+sudo cp -r armbian-install-amlogic/assets   /mnt/armbian-rootfs/etc/armbian-install-amlogic/
+
+# Permissões
+sudo chmod -R 755 /mnt/armbian-rootfs/etc/armbian-install-amlogic
+sudo find /mnt/armbian-rootfs/etc/armbian-install-amlogic -type f -exec chmod 644 {} \;
+```
+
+#### 5. Desmontar e liberar o loop device
+
+```bash
+sync
+sudo umount /mnt/armbian-rootfs
+sudo losetup -d "$LOOP_DEV"
+```
+
+A imagem está pronta para ser flashada.
 
 ---
 
@@ -1124,30 +1214,23 @@ echo $((237568 / 2048))   # Deve retornar 116 (verificação reversa)
 
 ### 3. Instalar no Sistema Armbian
 
-Copie o script principal e as configurações para o sistema:
+Com o novo perfil e asset no repositório, use o instalador para injetar no sistema rodando ou na imagem:
+
+**Via instalador (recomendado):**
 
 ```bash
-# Copia o script para /usr/bin do sistema Armbian (pendrive/SD)
-sudo cp armbian-install-amlogic.sh /usr/bin/armbian-install-amlogic
-sudo chmod +x /usr/bin/armbian-install-amlogic
+# Em sistema Armbian rodando (pendrive/SD)
+sudo ./install-to-system.sh
 
-# Copia perfis e assets para /etc do sistema Armbian (pendrive/SD)
-sudo cp -r armbian-install-amlogic /etc/
+# Em imagem .img
+sudo ./install-to-image.sh /caminho/para/Armbian.img
 ```
 
-### 4. Definir Permissões Corretas
+O instalador apresentará o novo perfil no menu de seleção com o `BOARD_NAME` definido no `.conf`.
 
-```bash
-# Permissões para diretórios (755) e arquivos (644)
-sudo chmod -R 755 /etc/armbian-install-amlogic
-sudo find /etc/armbian-install-amlogic -type f -exec chmod 644 {} \;
-```
+**Manualmente** (se preferir não usar o instalador): consulte a seção [Instalação Manual](#-instalação-manual).
 
-**Explicação das permissões:**
-- `755` para diretórios: Permite navegação e listagem
-- `644` para arquivos: Leitura para todos, escrita apenas para root
-
-### 5. Teste
+### 4. Teste
 
 Execute o instalador e verifique se o novo perfil aparece na lista de seleção:
 

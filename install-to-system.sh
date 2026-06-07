@@ -411,6 +411,10 @@ for idx in "${BOARD_IDX_ARRAY[@]}"; do
 
 done
 
+log "Setting permissions on $DEST_BASE..."
+chmod -R 755 "$DEST_BASE"
+find "$DEST_BASE" -type f -exec chmod 644 {} \;
+
 # ------------------------------------------------------------------------------
 # RESULT
 # ------------------------------------------------------------------------------
