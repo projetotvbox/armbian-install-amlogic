@@ -712,6 +712,7 @@ setenv start_emmc_autoscript 'if fatload mmc 1 1020000 emmc_autoscript; then set
 setenv start_mmc_autoscript 'if fatload mmc 0 1020000 s905_autoscript; then setenv devtype "mmc"; setenv devnum 0; autoscr 1020000; fi;'
 setenv start_usb_autoscript 'for usbdev in 0 1 2 3; do if fatload usb ${usbdev} 1020000 s905_autoscript; then setenv devtype "usb"; setenv devnum 0; autoscr 1020000; fi; done'
 setenv bootcmd 'run start_autoscript'
+setenv upgrade_step 2
 setenv bootdelay 1
 ```
 
