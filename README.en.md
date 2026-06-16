@@ -192,6 +192,7 @@ git clone https://github.com/projetotvbox/armbian-install-amlogic.git
 cd armbian-install-amlogic
 
 # Run the installer
+sudo chmod +x ./install-to-system.sh
 sudo ./install-to-system.sh
 ```
 
@@ -220,6 +221,7 @@ git clone https://github.com/projetotvbox/armbian-install-amlogic.git
 cd armbian-install-amlogic
 
 # Run the installer passing the image path as argument
+sudo chmod +x ./install-to-image.sh
 sudo ./install-to-image.sh /path/to/Armbian.img
 ```
 
